@@ -136,15 +136,11 @@ export function BibleBrowser({ user, onAuthRequired }) {
           <button type="button" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300" onClick={() => setSelectedBook(null)}>
             <ArrowLeft size={16} /> All books
           </button>
-          <div className="flex flex-col gap-3 rounded border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between">
+          <div className="rounded border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
             <div>
               <h3 className="text-xl font-semibold">{selectedBook.name}</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{selectedBook.chapters?.length || selectedBook.chapters} chapters</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Choose a chapter to rate it or drill down to individual verses.</p>
             </div>
-            <RatingControl
-              disabled={!user}
-              onRate={(score) => rate({ scope: 'chapter', bookId: selectedBook.id, chapter: 1, score })}
-            />
           </div>
           <HeatGrid items={chapterItems} onSelect={(item) => setSelectedChapter(item.chapter)} />
         </div>
