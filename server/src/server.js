@@ -2,6 +2,8 @@ import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ZodError } from 'zod';
 import { config } from './config.js';
 import authRoutes from './routes/authRoutes.js';
@@ -38,6 +40,15 @@ export function createApp() {
   app.use('/api/bible', bibleRoutes);
   app.use('/api/esv', esvRoutes);
   app.use('/api/ratings', ratingRoutes);
+
+  if (config.nodeEnv === 'production') {
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const clientDist = path.resolve(__dirname, '../../client/dist');
+    app.use(express.static(clientDist));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
+  }
 
   app.use((req, res) => {
     res.status(404).json({ error: 'Not found' });
