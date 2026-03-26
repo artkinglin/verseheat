@@ -13,6 +13,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
   const [query, setQuery] = useState('');
   const [passage, setPassage] = useState('');
   const [message, setMessage] = useState('');
+  const [favoriteDrafts, setFavoriteDrafts] = useState({});
 
   useEffect(() => {
     Promise.all([
@@ -104,6 +105,10 @@ export function BibleBrowser({ user, onAuthRequired }) {
     setMessage('Rating saved');
   }
 
+  function favoriteKey(scope, chapter, verse) {
+    return `${scope}:${selectedBook?.id}:${chapter}:${verse || 'chapter'}`;
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -157,9 +162,27 @@ export function BibleBrowser({ user, onAuthRequired }) {
                 <h3 className="text-xl font-semibold">{selectedBook.name} {selectedChapter.chapter}</h3>
                 <RatingControl
                   disabled={!user}
-                  onRate={(score) => rate({ scope: 'chapter', bookId: selectedBook.id, chapter: selectedChapter.chapter, score })}
+                  onRate={(score) => rate({
+                    scope: 'chapter',
+                    bookId: selectedBook.id,
+                    chapter: selectedChapter.chapter,
+                    score,
+                    favorite: Boolean(favoriteDrafts[favoriteKey('chapter', selectedChapter.chapter)]),
+                  })}
                 />
               </div>
+              <label className="mb-3 inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={Boolean(favoriteDrafts[favoriteKey('chapter', selectedChapter.chapter)])}
+                  onChange={(event) => setFavoriteDrafts({
+                    ...favoriteDrafts,
+                    [favoriteKey('chapter', selectedChapter.chapter)]: event.target.checked,
+                  })}
+                />
+                Mark next chapter rating as favorite
+              </label>
               <pre className="max-h-[34rem] whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-200">{passage || 'Loading passage...'}</pre>
             </div>
             <div className="space-y-3">
@@ -171,8 +194,27 @@ export function BibleBrowser({ user, onAuthRequired }) {
                     <div className="mb-2 text-xs text-slate-500 dark:text-slate-400">{item.averageRating ? `${item.averageRating} avg, ${item.ratingCount} ratings` : 'Unrated'}</div>
                     <RatingControl
                       disabled={!user}
-                      onRate={(score) => rate({ scope: 'verse', bookId: selectedBook.id, chapter: selectedChapter.chapter, verse: item.verse, score })}
+                      onRate={(score) => rate({
+                        scope: 'verse',
+                        bookId: selectedBook.id,
+                        chapter: selectedChapter.chapter,
+                        verse: item.verse,
+                        score,
+                        favorite: Boolean(favoriteDrafts[favoriteKey('verse', selectedChapter.chapter, item.verse)]),
+                      })}
                     />
+                    <label className="mt-2 inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <input
+                        type="checkbox"
+                        className="h-3 w-3"
+                        checked={Boolean(favoriteDrafts[favoriteKey('verse', selectedChapter.chapter, item.verse)])}
+                        onChange={(event) => setFavoriteDrafts({
+                          ...favoriteDrafts,
+                          [favoriteKey('verse', selectedChapter.chapter, item.verse)]: event.target.checked,
+                        })}
+                      />
+                      Favorite
+                    </label>
                   </div>
                 ))}
               </div>
