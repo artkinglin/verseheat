@@ -1,5 +1,5 @@
 import { ArrowLeft, Search } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { aggregateKey, averageBookRating, toAggregateMap } from '../lib/ratings.js';
 import { HeatGrid } from './HeatGrid.jsx';
@@ -13,23 +13,43 @@ export function BibleBrowser({ user, onAuthRequired }) {
   const [query, setQuery] = useState('');
   const [passage, setPassage] = useState('');
   const [message, setMessage] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [bookLoading, setBookLoading] = useState(false);
   const [favoriteDrafts, setFavoriteDrafts] = useState({});
-  const selectedBookId = selectedBook?.id;
 
   useEffect(() => {
-    Promise.all([
-      api('/api/bible/books'),
-      api('/api/ratings/aggregates'),
-    ]).then(([bookData, ratingData]) => {
-      setBooks(bookData.books);
-      setAggregates(ratingData.aggregates);
-    });
+    let ignore = false;
+
+    async function loadInitialData() {
+      try {
+        const bookData = await api('/api/bible/books');
+        if (ignore) return;
+        setBooks(bookData.books);
+
+        try {
+          const ratingData = await api('/api/ratings/aggregates');
+          if (ignore) return;
+          setAggregates(ratingData.aggregates);
+          setLoadError('');
+        } catch (error) {
+          if (ignore) return;
+          setAggregates([]);
+          setLoadError(`Ratings are unavailable: ${error.message}`);
+        }
+      } catch (error) {
+        if (ignore) return;
+        setBooks([]);
+        setAggregates([]);
+        setLoadError(`Bible data is unavailable: ${error.message}`);
+      }
+    }
+
+    loadInitialData();
+
+    return () => {
+      ignore = true;
+    };
   }, []);
-
-  useEffect(() => {
-    if (!selectedBookId || Array.isArray(selectedBook?.chapters)) return;
-    api(`/api/bible/books/${selectedBookId}`).then(({ book }) => setSelectedBook(book));
-  }, [selectedBookId, selectedBook?.chapters]);
 
   useEffect(() => {
     if (!selectedBook || !selectedChapter) {
@@ -59,7 +79,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
     };
   });
 
-  const chapterItems = selectedBook?.chapters?.map((chapter) => {
+  const chapterItems = Array.isArray(selectedBook?.chapters) ? selectedBook.chapters.map((chapter) => {
     const aggregate = aggregateMap.get(aggregateKey({
       scope: 'chapter',
       bookId: selectedBook.id,
@@ -72,7 +92,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
       ratingCount: aggregate?.ratingCount,
       chapter,
     };
-  }) || [];
+  }) : [];
 
   const verseItems = selectedChapter ? Array.from({ length: selectedChapter.verseCount }, (_, index) => {
     const verse = index + 1;
@@ -110,6 +130,24 @@ export function BibleBrowser({ user, onAuthRequired }) {
     return `${scope}:${selectedBook?.id}:${chapter}:${verse || 'chapter'}`;
   }
 
+  async function selectBook(book) {
+    setSelectedChapter(null);
+    setMessage('');
+    setLoadError('');
+    setSelectedBook({ ...book, chapters: [] });
+    setBookLoading(true);
+
+    try {
+      const data = await api(`/api/bible/books/${book.id}`);
+      setSelectedBook(data.book);
+    } catch (error) {
+      setSelectedBook(null);
+      setLoadError(`Book details are unavailable: ${error.message}`);
+    } finally {
+      setBookLoading(false);
+    }
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -128,12 +166,17 @@ export function BibleBrowser({ user, onAuthRequired }) {
         </label>
       </div>
 
+      {loadError && (
+        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+          {loadError}
+        </div>
+      )}
       {message && <div className="rounded bg-green-50 px-3 py-2 text-sm text-green-800 dark:bg-green-950 dark:text-green-100">{message}</div>}
 
       {!selectedBook && (
         <HeatGrid
           items={bookItems}
-          onSelect={(item) => setSelectedBook(item.book)}
+          onSelect={(item) => selectBook(item.book)}
         />
       )}
 
@@ -148,7 +191,13 @@ export function BibleBrowser({ user, onAuthRequired }) {
               <p className="text-sm text-slate-500 dark:text-slate-400">Choose a chapter to rate it or drill down to individual verses.</p>
             </div>
           </div>
-          <HeatGrid items={chapterItems} onSelect={(item) => setSelectedChapter(item.chapter)} />
+          {bookLoading ? (
+            <div className="rounded border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700">
+              Loading chapters...
+            </div>
+          ) : (
+            <HeatGrid items={chapterItems} onSelect={(item) => setSelectedChapter(item.chapter)} />
+          )}
         </div>
       )}
 

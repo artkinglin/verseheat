@@ -1,3 +1,4 @@
+import React from 'react';
 import { Flame, LogOut, Moon, Sun, User } from 'lucide-react';
 
 export function Header({ user, onAuthOpen, onLogout, darkMode, onDarkModeToggle }) {

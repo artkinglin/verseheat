@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { BarChart3, Grid3X3, Search } from 'lucide-react';
 import { api } from './api.js';
 import { AuthModal } from './components/AuthModal.jsx';
@@ -22,6 +22,7 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [trending, setTrending] = useState([]);
   const [myRatings, setMyRatings] = useState([]);
+  const [insightsError, setInsightsError] = useState('');
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
@@ -29,18 +30,26 @@ export default function App() {
   }, [darkMode]);
 
   const refreshInsights = useCallback(async () => {
-    const [leaderboardData, trendingData] = await Promise.all([
-      api('/api/ratings/leaderboard'),
-      api('/api/ratings/trending'),
-    ]);
-    setLeaderboard(leaderboardData.leaderboard);
-    setTrending(trendingData.trending);
+    try {
+      const [leaderboardData, trendingData] = await Promise.all([
+        api('/api/ratings/leaderboard'),
+        api('/api/ratings/trending'),
+      ]);
+      setLeaderboard(leaderboardData.leaderboard);
+      setTrending(trendingData.trending);
+      setInsightsError('');
 
-    if (user) {
-      const mine = await api('/api/ratings/mine');
-      setMyRatings(mine.ratings);
-    } else {
+      if (user) {
+        const mine = await api('/api/ratings/mine');
+        setMyRatings(mine.ratings);
+      } else {
+        setMyRatings([]);
+      }
+    } catch (error) {
+      setLeaderboard([]);
+      setTrending([]);
       setMyRatings([]);
+      setInsightsError(error.message);
     }
   }, [user]);
 
@@ -95,7 +104,16 @@ export default function App() {
         </nav>
 
         {activeTab === 'heat' && <BibleBrowser user={user} onAuthRequired={() => setAuthOpen(true)} />}
-        {activeTab === 'insights' && <InsightPanels leaderboard={leaderboard} trending={trending} myRatings={myRatings} />}
+        {activeTab === 'insights' && (
+          <>
+            {insightsError && (
+              <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+                Insights are unavailable: {insightsError}
+              </div>
+            )}
+            <InsightPanels leaderboard={leaderboard} trending={trending} myRatings={myRatings} />
+          </>
+        )}
         {activeTab === 'search' && <SearchPanel />}
       </main>
 

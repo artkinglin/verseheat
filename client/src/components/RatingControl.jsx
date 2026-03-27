@@ -1,3 +1,4 @@
+import React from 'react';
 import { Star } from 'lucide-react';
 
 export function RatingControl({ disabled, onRate, selectedScore }) {
