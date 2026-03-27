@@ -1,7 +1,14 @@
-const API_BASE_URL =
+const configuredApiBaseUrl =
   import.meta.env.VITE_API_URL ||
   import.meta.env.VITE_API_BASE_URL ||
-  'http://localhost:4000';
+  '';
+
+const isLocalApiBaseUrl = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredApiBaseUrl);
+
+const API_BASE_URL =
+  configuredApiBaseUrl && (!import.meta.env.PROD || !isLocalApiBaseUrl)
+    ? configuredApiBaseUrl
+    : (import.meta.env.DEV ? 'http://localhost:4000' : '');
 
 export class ApiError extends Error {
   constructor(message, status) {
