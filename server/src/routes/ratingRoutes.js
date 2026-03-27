@@ -91,11 +91,24 @@ router.post('/', requireAuth, async (req, res, next) => {
 
     const book = getBook(input.bookId);
     const result = await query(
-      `insert into ratings (user_id, scope, book_id, book_name, chapter, verse, score, favorite)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
-       on conflict (user_id, scope, book_id, chapter, verse)
-       do update set score = excluded.score, favorite = excluded.favorite, updated_at = now()
-       returning id, scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, updated_at as "updatedAt"`,
+      `with updated as (
+         update ratings
+         set score = $7, favorite = $8, updated_at = now()
+         where user_id = $1
+           and scope = $2
+           and book_id = $3
+           and chapter = $5
+           and (($2 = 'chapter' and verse is null) or ($2 = 'verse' and verse = $6))
+         returning id, scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, updated_at as "updatedAt"
+       ), inserted as (
+         insert into ratings (user_id, scope, book_id, book_name, chapter, verse, score, favorite)
+         select $1, $2, $3, $4, $5, $6, $7, $8
+         where not exists (select 1 from updated)
+         returning id, scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, updated_at as "updatedAt"
+       )
+       select * from updated
+       union all
+       select * from inserted`,
       [
         req.user.sub,
         input.scope,
