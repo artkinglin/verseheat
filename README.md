@@ -41,8 +41,10 @@ Server:
 
 Client:
 
-- `VITE_API_BASE_URL=http://localhost:4000`
+- `VITE_API_URL=http://localhost:4000`
 
 ## Deploy
 
 Deploy the client as a static Vite app and the server as a Node service. Provision PostgreSQL, apply `server/db/schema.sql`, and configure the environment variables above.
+
+For Vercel client deployments, set `VITE_API_URL` to the deployed API origin, for example `https://your-api.example.com` or `https://your-vercel-domain.vercel.app/api` if the API is hosted under the same Vercel project.
