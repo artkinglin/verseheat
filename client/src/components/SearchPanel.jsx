@@ -13,7 +13,7 @@ export function SearchPanel() {
     setStatus('Searching...');
     try {
       const data = await api(`/api/esv/search?q=${encodeURIComponent(query.trim())}`);
-      setResults(data.results || []);
+      setResults(Array.isArray(data.results) ? data.results : []);
       setStatus(`${data.total_results || 0} results`);
     } catch (error) {
       setResults([]);

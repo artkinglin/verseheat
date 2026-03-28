@@ -14,6 +14,10 @@ const tabs = [
   { id: 'search', label: 'Search', icon: Search },
 ];
 
+function arrayOrEmpty(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 export default function App() {
   const { user, signup, login, logout } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
@@ -35,13 +39,13 @@ export default function App() {
         api('/api/ratings/leaderboard'),
         api('/api/ratings/trending'),
       ]);
-      setLeaderboard(leaderboardData.leaderboard);
-      setTrending(trendingData.trending);
+      setLeaderboard(arrayOrEmpty(leaderboardData.leaderboard));
+      setTrending(arrayOrEmpty(trendingData.trending));
       setInsightsError('');
 
       if (user) {
         const mine = await api('/api/ratings/mine');
-        setMyRatings(mine.ratings);
+        setMyRatings(arrayOrEmpty(mine.ratings));
       } else {
         setMyRatings([]);
       }
