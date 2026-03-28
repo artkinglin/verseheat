@@ -11,7 +11,7 @@ import bibleRoutes from './routes/bibleRoutes.js';
 import esvRoutes from './routes/esvRoutes.js';
 import ratingRoutes from './routes/ratingRoutes.js';
 
-export function createApp() {
+export function createApp({ serveClient = config.nodeEnv === 'production' } = {}) {
   const app = express();
 
   if (config.nodeEnv === 'production') {
@@ -45,7 +45,7 @@ export function createApp() {
   app.use('/api/esv', esvRoutes);
   app.use('/api/ratings', ratingRoutes);
 
-  if (config.nodeEnv === 'production') {
+  if (serveClient) {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const clientDist = path.resolve(__dirname, '../../client/dist');
     app.use(express.static(clientDist));
