@@ -76,7 +76,7 @@ export default function App() {
           <div>
             <h2 className="text-3xl font-semibold tracking-normal">Verse Heat</h2>
             <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-              A community heat map for ESV chapter and verse ratings, with duplicate ratings limited to one per user per reference.
+              A community heat map for ESV verse ratings, with chapter and book heat calculated automatically.
             </p>
           </div>
           {!user && (

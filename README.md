@@ -1,6 +1,6 @@
 # Verse Heat
 
-Verse Heat is a full-stack MVP for rating ESV Bible verses and chapters with a red-to-yellow-to-green heat map.
+Verse Heat is a full-stack MVP for rating ESV Bible verses with a red-to-yellow-to-green heat map. Chapter heat is calculated from verse ratings, and book heat is calculated from chapter averages.
 
 ## Stack
 

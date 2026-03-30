@@ -6,18 +6,17 @@ import { getBook, getChapterVerseCount } from '../data/bible.js';
 
 const router = Router();
 
-const scopeSchema = z.enum(['verse', 'chapter']);
 const ratingSchema = z.object({
-  scope: scopeSchema,
+  scope: z.literal('verse').optional().default('verse'),
   bookId: z.number().int().min(1).max(66),
   chapter: z.number().int().min(1),
-  verse: z.number().int().min(1).nullable().optional(),
+  verse: z.number().int().min(1),
   score: z.number().int().min(1).max(10),
   favorite: z.boolean().optional(),
 });
 
 const aggregateSchema = z.object({
-  scope: scopeSchema.optional(),
+  scope: z.enum(['verse', 'chapter', 'book']).optional(),
   bookId: z.coerce.number().int().min(1).max(66).optional(),
   chapter: z.coerce.number().int().min(1).optional(),
 });
@@ -26,57 +25,175 @@ function validateReference(input) {
   const book = getBook(input.bookId);
   if (!book) return 'Book not found';
   if (input.chapter > book.chapters) return 'Chapter not found';
-  if (input.scope === 'chapter' && input.verse) return 'Chapter ratings cannot include a verse';
-  if (input.scope === 'verse') {
-    const verseCount = getChapterVerseCount(input.bookId, input.chapter);
-    if (!input.verse || input.verse > verseCount) return 'Verse not found';
-  }
+  const verseCount = getChapterVerseCount(input.bookId, input.chapter);
+  if (!input.verse || input.verse > verseCount) return 'Verse not found';
   return null;
 }
 
-function aggregateSelect(whereSql, params) {
-  return query(
-    `select
-       scope,
-       book_id as "bookId",
-       book_name as "bookName",
-       chapter,
-       verse,
-       count(*)::int as "ratingCount",
-       round(avg(score)::numeric, 2)::float as "averageRating",
-       max(updated_at) as "lastRatedAt"
-     from ratings
-     ${whereSql}
-     group by scope, book_id, book_name, chapter, verse
-     order by book_id asc, chapter asc, verse asc nulls first`,
-    params,
+function emptyBookRating(book) {
+  return {
+    scope: 'book',
+    bookId: book.id,
+    bookName: book.name,
+    ratingCount: 0,
+    averageRating: null,
+    lastRatedAt: null,
+  };
+}
+
+function emptyChapterRating(book, chapter) {
+  return {
+    scope: 'chapter',
+    bookId: book.id,
+    bookName: book.name,
+    chapter,
+    ratingCount: 0,
+    averageRating: null,
+    lastRatedAt: null,
+  };
+}
+
+function emptyVerseRating(book, chapter, verse) {
+  return {
+    scope: 'verse',
+    bookId: book.id,
+    bookName: book.name,
+    chapter,
+    verse,
+    ratingCount: 0,
+    averageRating: null,
+    lastRatedAt: null,
+  };
+}
+
+async function getBookRating(bookId) {
+  const book = getBook(bookId);
+  if (!book) return null;
+
+  const result = await query(
+    `with chapter_ratings as (
+       select chapter,
+              avg(score)::numeric as average_rating,
+              max(updated_at) as last_rated_at
+       from verse_ratings
+       where book_id = $1
+       group by chapter
+     )
+     select count(*)::int as "ratingCount",
+            round(avg(average_rating), 2)::float as "averageRating",
+            max(last_rated_at) as "lastRatedAt"
+     from chapter_ratings`,
+    [book.id],
   );
+
+  return { ...emptyBookRating(book), ...result.rows[0] };
+}
+
+async function getChapterRating(bookId, chapter) {
+  const book = getBook(bookId);
+  if (!book || chapter > book.chapters) return null;
+
+  const result = await query(
+    `select count(*)::int as "ratingCount",
+            round(avg(score)::numeric, 2)::float as "averageRating",
+            max(updated_at) as "lastRatedAt"
+     from verse_ratings
+     where book_id = $1 and chapter = $2`,
+    [book.id, chapter],
+  );
+
+  return { ...emptyChapterRating(book, chapter), ...result.rows[0] };
+}
+
+async function getVerseRating(bookId, chapter, verse) {
+  const book = getBook(bookId);
+  if (!book || chapter > book.chapters || verse > getChapterVerseCount(bookId, chapter)) return null;
+
+  const result = await query(
+    `select count(*)::int as "ratingCount",
+            round(avg(score)::numeric, 2)::float as "averageRating",
+            max(updated_at) as "lastRatedAt"
+     from verse_ratings
+     where book_id = $1 and chapter = $2 and verse = $3`,
+    [book.id, chapter, verse],
+  );
+
+  return { ...emptyVerseRating(book, chapter, verse), ...result.rows[0] };
 }
 
 router.get('/aggregates', async (req, res, next) => {
   try {
     const filters = aggregateSchema.parse(req.query);
-    const clauses = [];
-    const params = [];
+    const scopes = filters.scope ? [filters.scope] : ['book', 'chapter', 'verse'];
+    const aggregates = [];
 
-    Object.entries({
-      scope: filters.scope,
-      book_id: filters.bookId,
-      chapter: filters.chapter,
-    }).forEach(([column, value]) => {
-      if (value !== undefined) {
-        params.push(value);
-        clauses.push(`${column} = $${params.length}`);
+    for (const scope of scopes) {
+      if (scope === 'book') {
+        const books = filters.bookId ? [getBook(filters.bookId)].filter(Boolean) : Array.from({ length: 66 }, (_, index) => getBook(index + 1));
+        for (const book of books) {
+          aggregates.push(await getBookRating(book.id));
+        }
       }
-    });
 
-    const result = await aggregateSelect(
-      clauses.length ? `where ${clauses.join(' and ')}` : '',
-      params,
-    );
-    res.json({ aggregates: result.rows });
+      if (scope === 'chapter' && filters.bookId) {
+        const book = getBook(filters.bookId);
+        if (!book) return res.status(404).json({ error: 'Book not found' });
+        const chapters = filters.chapter ? [filters.chapter] : Array.from({ length: book.chapters }, (_, index) => index + 1);
+        for (const chapter of chapters) {
+          const rating = await getChapterRating(book.id, chapter);
+          if (!rating) return res.status(404).json({ error: 'Chapter not found' });
+          aggregates.push(rating);
+        }
+      }
+
+      if (scope === 'verse' && filters.bookId && filters.chapter) {
+        const verseCount = getChapterVerseCount(filters.bookId, filters.chapter);
+        if (!verseCount) return res.status(404).json({ error: 'Chapter not found' });
+        for (let verse = 1; verse <= verseCount; verse += 1) {
+          aggregates.push(await getVerseRating(filters.bookId, filters.chapter, verse));
+        }
+      }
+    }
+
+    return res.json({ aggregates });
   } catch (error) {
-    next(error);
+    return next(error);
+  }
+});
+
+router.get('/book/:bookId', async (req, res, next) => {
+  try {
+    const bookId = z.coerce.number().int().min(1).max(66).parse(req.params.bookId);
+    const rating = await getBookRating(bookId);
+    if (!rating) return res.status(404).json({ error: 'Book not found' });
+    return res.json({ rating });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/chapter/:bookId/:chapterNum', async (req, res, next) => {
+  try {
+    const bookId = z.coerce.number().int().min(1).max(66).parse(req.params.bookId);
+    const chapter = z.coerce.number().int().min(1).parse(req.params.chapterNum);
+    const rating = await getChapterRating(bookId, chapter);
+    if (!rating) return res.status(404).json({ error: 'Chapter not found' });
+    return res.json({ rating });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/verse/:bookId/:chapterNum/:verseNum', async (req, res, next) => {
+  try {
+    const bookId = z.coerce.number().int().min(1).max(66).parse(req.params.bookId);
+    const chapter = z.coerce.number().int().min(1).parse(req.params.chapterNum);
+    const verse = z.coerce.number().int().min(1).parse(req.params.verseNum);
+    const rating = await getVerseRating(bookId, chapter, verse);
+    if (!rating) return res.status(404).json({ error: 'Verse not found' });
+    return res.json({ rating });
+  } catch (error) {
+    return next(error);
   }
 });
 
@@ -92,30 +209,28 @@ router.post('/', requireAuth, async (req, res, next) => {
     const book = getBook(input.bookId);
     const result = await query(
       `with updated as (
-         update ratings
-         set score = $7, favorite = $8, updated_at = now()
+         update verse_ratings
+         set score = $6, favorite = $7, updated_at = now()
          where user_id = $1
-           and scope = $2
-           and book_id = $3
-           and chapter = $5
-           and (($2 = 'chapter' and verse is null) or ($2 = 'verse' and verse = $6))
-         returning id, scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, updated_at as "updatedAt"
+           and book_id = $2
+           and chapter = $4
+           and verse = $5
+         returning id, 'verse' as scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, updated_at as "updatedAt"
        ), inserted as (
-         insert into ratings (user_id, scope, book_id, book_name, chapter, verse, score, favorite)
-         select $1, $2, $3, $4, $5, $6, $7, $8
+         insert into verse_ratings (user_id, book_id, book_name, chapter, verse, score, favorite)
+         select $1, $2, $3, $4, $5, $6, $7
          where not exists (select 1 from updated)
-         returning id, scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, updated_at as "updatedAt"
+         returning id, 'verse' as scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, updated_at as "updatedAt"
        )
        select * from updated
        union all
        select * from inserted`,
       [
         req.user.sub,
-        input.scope,
         input.bookId,
         book.name,
         input.chapter,
-        input.scope === 'verse' ? input.verse : null,
+        input.verse,
         input.score,
         input.favorite || false,
       ],
@@ -130,11 +245,13 @@ router.post('/', requireAuth, async (req, res, next) => {
 router.get('/leaderboard', async (req, res, next) => {
   try {
     const result = await query(
-      `select scope, book_id as "bookId", book_name as "bookName", chapter, verse,
+       `select scope, book_id as "bookId", book_name as "bookName", chapter, verse,
               count(*)::int as "ratingCount",
               round(avg(score)::numeric, 2)::float as "averageRating"
-       from ratings
-       where scope = 'verse'
+       from (
+         select 'verse' as scope, book_id, book_name, chapter, verse, score
+         from verse_ratings
+       ) rated_verses
        group by scope, book_id, book_name, chapter, verse
        having count(*) > 0
        order by avg(score) desc, count(*) desc
@@ -149,10 +266,13 @@ router.get('/leaderboard', async (req, res, next) => {
 router.get('/trending', async (req, res, next) => {
   try {
     const result = await query(
-      `select scope, book_id as "bookId", book_name as "bookName", chapter, verse,
+       `select scope, book_id as "bookId", book_name as "bookName", chapter, verse,
               count(*)::int as "ratingCount",
               round(avg(score)::numeric, 2)::float as "averageRating"
-       from ratings
+       from (
+         select 'verse' as scope, book_id, book_name, chapter, verse, score, updated_at
+         from verse_ratings
+       ) rated_verses
        where updated_at >= now() - interval '7 days'
        group by scope, book_id, book_name, chapter, verse
        order by count(*) desc, avg(score) desc
@@ -167,9 +287,9 @@ router.get('/trending', async (req, res, next) => {
 router.get('/mine', requireAuth, async (req, res, next) => {
   try {
     const result = await query(
-      `select id, scope, book_id as "bookId", book_name as "bookName", chapter, verse,
+       `select id, 'verse' as scope, book_id as "bookId", book_name as "bookName", chapter, verse,
               score, favorite, updated_at as "updatedAt"
-       from ratings
+       from verse_ratings
        where user_id = $1
        order by updated_at desc`,
       [req.user.sub],
