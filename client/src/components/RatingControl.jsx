@@ -1,5 +1,4 @@
 import React from 'react';
-import { Star } from 'lucide-react';
 
 export function RatingControl({ disabled, onRate, selectedScore }) {
   return (
@@ -18,7 +17,7 @@ export function RatingControl({ disabled, onRate, selectedScore }) {
           aria-label={`Rate ${score} out of 10`}
           title={`Rate ${score} out of 10`}
         >
-          {score <= 5 ? <Star size={13} fill="currentColor" /> : score}
+          {score}
         </button>
       ))}
     </div>
