@@ -63,6 +63,17 @@ export default function App() {
     }
   }, [activeTab, refreshInsights]);
 
+  async function clearRating(rating) {
+    try {
+      await api(`/api/ratings/verse/${rating.bookId}/${rating.chapter}/${rating.verse}`, {
+        method: 'DELETE',
+      });
+      await refreshInsights();
+    } catch (error) {
+      setInsightsError(error.message);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-50">
       <Header
@@ -117,7 +128,7 @@ export default function App() {
                 Insights are unavailable: {insightsError}
               </div>
             )}
-            <InsightPanels leaderboard={leaderboard} trending={trending} myRatings={myRatings} />
+            <InsightPanels leaderboard={leaderboard} trending={trending} myRatings={myRatings} onClearRating={clearRating} />
           </>
         )}
         {activeTab === 'search' && <SearchPanel />}
