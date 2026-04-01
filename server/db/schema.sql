@@ -43,6 +43,36 @@ create index if not exists verse_ratings_updated_at_idx
 create unique index if not exists verse_ratings_one_per_user_idx
   on verse_ratings (user_id, book_id, chapter, verse);
 
+create table if not exists collections (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  name text not null check (char_length(trim(name)) between 1 and 80),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists collections_user_updated_at_idx
+  on collections (user_id, updated_at desc);
+
+create unique index if not exists collections_one_name_per_user_idx
+  on collections (user_id, lower(name));
+
+create table if not exists collection_verses (
+  id uuid primary key default uuid_generate_v4(),
+  collection_id uuid not null references collections(id) on delete cascade,
+  book_id integer not null,
+  book_name text not null,
+  chapter integer not null,
+  verse integer not null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists collection_verses_one_reference_idx
+  on collection_verses (collection_id, book_id, chapter, verse);
+
+create index if not exists collection_verses_reference_idx
+  on collection_verses (book_id, chapter, verse);
+
 create table if not exists verse_struggles (
   book_id integer not null,
   book_name text not null,
@@ -127,7 +157,17 @@ values
   (19, 'Psalms', 73, 26, 'Life issues', 'Loss'),
   (47, '2 Corinthians', 1, 3, 'Life issues', 'Loss'),
   (47, '2 Corinthians', 1, 4, 'Life issues', 'Loss'),
-  (50, 'Philippians', 3, 8, 'Life issues', 'Loss')
+  (50, 'Philippians', 3, 8, 'Life issues', 'Loss'),
+  (19, 'Psalms', 23, 4, 'Common struggles', 'Comfort'),
+  (23, 'Isaiah', 41, 10, 'Common struggles', 'Comfort'),
+  (47, '2 Corinthians', 1, 5, 'Common struggles', 'Comfort'),
+  (19, 'Psalms', 46, 1, 'Common struggles', 'Fear'),
+  (55, '2 Timothy', 1, 7, 'Common struggles', 'Fear'),
+  (45, 'Romans', 8, 28, 'Common struggles', 'Hope'),
+  (24, 'Jeremiah', 29, 11, 'Common struggles', 'Hope'),
+  (20, 'Proverbs', 3, 5, 'Common struggles', 'Guidance'),
+  (20, 'Proverbs', 3, 6, 'Common struggles', 'Guidance'),
+  (45, 'Romans', 15, 13, 'Common struggles', 'Faith')
 on conflict (book_id, chapter, verse, struggle) do update
 set book_name = excluded.book_name,
     category = excluded.category;
