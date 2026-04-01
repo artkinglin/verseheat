@@ -66,3 +66,51 @@ select {
   transform: translateY(-1px);
   box-shadow: 0 10px 20px rgb(15 23 42 / 0.16);
 }
+
+.verse-day-card {
+  position: relative;
+  background:
+    linear-gradient(120deg, rgb(254 243 199 / 0.94), rgb(209 250 229 / 0.9) 48%, rgb(237 233 254 / 0.92)),
+    radial-gradient(circle at 14% 18%, rgb(245 158 11 / 0.28), transparent 20rem);
+}
+
+.dark .verse-day-card {
+  background:
+    linear-gradient(120deg, rgb(49 46 129 / 0.9), rgb(6 78 59 / 0.72) 48%, rgb(88 28 135 / 0.82)),
+    radial-gradient(circle at 14% 18%, rgb(245 158 11 / 0.18), transparent 20rem);
+}
+
+.verse-day-card::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(110deg, transparent 35%, rgb(255 255 255 / 0.26) 50%, transparent 65%);
+  animation: verse-day-shimmer 12s linear infinite;
+  pointer-events: none;
+}
+
+.verse-day-copy {
+  animation: verse-day-enter 420ms ease both;
+}
+
+@keyframes verse-day-shimmer {
+  from {
+    transform: translateX(-28%) rotate(8deg);
+  }
+
+  to {
+    transform: translateX(28%) rotate(8deg);
+  }
+}
+
+@keyframes verse-day-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

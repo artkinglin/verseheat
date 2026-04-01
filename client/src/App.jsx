@@ -6,6 +6,7 @@ import { BibleBrowser } from './components/BibleBrowser.jsx';
 import { Header } from './components/Header.jsx';
 import { InsightPanels } from './components/InsightPanels.jsx';
 import { SearchPanel } from './components/SearchPanel.jsx';
+import { VerseOfDay } from './components/VerseOfDay.jsx';
 import { useAuth } from './hooks/useAuth.js';
 
 const tabs = [
@@ -158,6 +159,8 @@ export default function App() {
             </button>
           )}
         </div>
+
+        <VerseOfDay user={user} onAuthRequired={() => setAuthOpen(true)} />
 
         <nav className="app-card flex gap-2 overflow-x-auto p-1.5" aria-label="App sections">
           {tabs.map((tab) => {
