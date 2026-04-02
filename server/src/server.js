@@ -12,6 +12,7 @@ import collectionRoutes from './routes/collectionRoutes.js';
 import esvRoutes from './routes/esvRoutes.js';
 import feedRoutes from './routes/feedRoutes.js';
 import ratingRoutes from './routes/ratingRoutes.js';
+import streakRoutes from './routes/streakRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import verseOfDayRoutes from './routes/verseOfDayRoutes.js';
 
@@ -50,6 +51,7 @@ export function createApp({ serveClient = config.nodeEnv === 'production' } = {}
   app.use('/api/esv', esvRoutes);
   app.use('/api/feed', feedRoutes);
   app.use('/api/ratings', ratingRoutes);
+  app.use('/api/streak', streakRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/verse-of-the-day', verseOfDayRoutes);
 
