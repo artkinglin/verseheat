@@ -73,6 +73,23 @@ create index if not exists verse_ratings_updated_at_idx
 create unique index if not exists verse_ratings_one_per_user_idx
   on verse_ratings (user_id, book_id, chapter, verse);
 
+create table if not exists streak_restores (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  restored_day date not null,
+  week_key date not null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists streak_restores_one_per_week_idx
+  on streak_restores (user_id, week_key);
+
+create unique index if not exists streak_restores_one_per_day_idx
+  on streak_restores (user_id, restored_day);
+
+create index if not exists streak_restores_user_day_idx
+  on streak_restores (user_id, restored_day desc);
+
 create table if not exists collections (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references users(id) on delete cascade,
