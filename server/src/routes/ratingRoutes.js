@@ -445,11 +445,12 @@ router.get('/leaderboard', async (req, res, next) => {
                rv.rating_count as "ratingCount",
                rv.average_rating as "averageRating",
                top_user.id as "topUserId",
-               top_user.email as "topUserEmail",
-               top_user.display_name as "topUserDisplayName"
+               top_user.username as "topUserUsername",
+               top_user.display_name as "topUserDisplayName",
+               top_user.profile_picture as "topUserProfilePicture"
         from ranked_verses rv
         left join lateral (
-          select u.id, u.email, u.display_name
+          select u.id, u.username, u.display_name, u.profile_picture
           from verse_ratings vr
           join users u on u.id = vr.user_id
           where vr.book_id = rv.book_id

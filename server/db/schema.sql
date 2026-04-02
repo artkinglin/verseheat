@@ -5,8 +5,38 @@ create table if not exists users (
   email text not null unique,
   password_hash text not null,
   display_name text,
+  username text,
+  bio text,
+  profile_picture text,
   created_at timestamptz not null default now()
 );
+
+alter table users add column if not exists username text;
+alter table users add column if not exists bio text;
+alter table users add column if not exists profile_picture text;
+
+update users
+set username = 'user-' || substr(replace(id::text, '-', ''), 1, 12)
+where username is null or btrim(username) = '';
+
+alter table users alter column username set not null;
+
+create unique index if not exists users_username_unique_idx
+  on users (lower(username));
+
+create table if not exists user_follows (
+  follower_id uuid not null references users(id) on delete cascade,
+  following_id uuid not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (follower_id, following_id),
+  check (follower_id <> following_id)
+);
+
+create index if not exists user_follows_following_idx
+  on user_follows (following_id, created_at desc);
+
+create index if not exists user_follows_follower_idx
+  on user_follows (follower_id, created_at desc);
 
 create table if not exists verse_ratings (
   id uuid primary key default uuid_generate_v4(),

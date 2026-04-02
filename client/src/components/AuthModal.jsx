@@ -3,7 +3,7 @@ import { LogIn, UserPlus, X } from 'lucide-react';
 
 export function AuthModal({ open, onClose, onLogin, onSignup }) {
   const [mode, setMode] = useState('login');
-  const [form, setForm] = useState({ email: '', password: '', displayName: '' });
+  const [form, setForm] = useState({ email: '', password: '', displayName: '', username: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -55,14 +55,25 @@ export function AuthModal({ open, onClose, onLogin, onSignup }) {
 
         <form className="space-y-3" onSubmit={submit}>
           {mode === 'signup' && (
-            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
-              Display name
-              <input
-                className="app-input mt-1 w-full px-3 py-2.5"
-                value={form.displayName}
-                onChange={(event) => setForm({ ...form, displayName: event.target.value })}
-              />
-            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Display name
+                <input
+                  className="app-input mt-1 w-full px-3 py-2.5"
+                  value={form.displayName}
+                  onChange={(event) => setForm({ ...form, displayName: event.target.value })}
+                />
+              </label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Username
+                <input
+                  className="app-input mt-1 w-full px-3 py-2.5"
+                  pattern="[A-Za-z0-9_-]{3,32}"
+                  value={form.username}
+                  onChange={(event) => setForm({ ...form, username: event.target.value })}
+                />
+              </label>
+            </div>
           )}
           <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
             Email

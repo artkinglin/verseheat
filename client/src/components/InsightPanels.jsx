@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, FolderPlus, Heart, Library, Share2, Trash2, TrendingUp, UserRound, UserRoundCheck, X } from 'lucide-react';
+import { BarChart3, FolderPlus, Heart, Library, Share2, Trash2, TrendingUp, UserRoundCheck, X } from 'lucide-react';
 import { api } from '../api.js';
 import { referenceLabel } from '../lib/heat.js';
 
@@ -14,13 +14,14 @@ function RankingList({ icon: Icon, title, items, emptyLabel, onNavigate }) {
       </h3>
       <div className="space-y-2">
         {safeItems.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">{emptyLabel}</p>}
-        {safeItems.map((item, index) => (
+        {safeItems.map((item, index) => {
+          const topUserName = item.topUserDisplayName || item.topUserUsername;
+          return (
           <div key={`${title}-${item.bookId}-${item.chapter}-${item.verse || index}`} className="flex items-center justify-between gap-3 rounded-lg bg-gradient-to-r from-amber-50 to-white px-3 py-2 text-sm shadow-sm dark:from-indigo-950/50 dark:to-slate-950/40">
             <div>
               <div className="font-bold text-slate-900 dark:text-amber-50">{index + 1}. {referenceLabel(item)}</div>
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 {item.ratingCount} ratings
-                {item.topUserDisplayName || item.topUserEmail ? ` - Top rater: ${item.topUserDisplayName || item.topUserEmail}` : ''}
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -28,17 +29,24 @@ function RankingList({ icon: Icon, title, items, emptyLabel, onNavigate }) {
                 <button
                   type="button"
                   onClick={() => onNavigate?.(`/profile/${item.topUserId}`)}
-                  className="rounded-lg p-2 text-purple-700 transition hover:-translate-y-px hover:bg-purple-100 dark:text-purple-200 dark:hover:bg-purple-950/50"
-                  aria-label={`View profile for ${item.topUserDisplayName || item.topUserEmail || 'top rater'}`}
+                  className="inline-flex items-center gap-2 rounded-lg px-2 py-1 text-purple-700 transition hover:-translate-y-px hover:bg-purple-100 dark:text-purple-200 dark:hover:bg-purple-950/50"
+                  aria-label={`View profile for ${topUserName || 'top rater'}`}
                   title="View Profile"
                 >
-                  <UserRound size={16} aria-hidden="true" />
+                  {item.topUserProfilePicture ? (
+                    <img src={item.topUserProfilePicture} alt="" className="h-7 w-7 rounded-lg object-cover" />
+                  ) : (
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-xs font-extrabold dark:bg-purple-950/60">
+                      {(topUserName || '?').slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                  <span className="hidden max-w-24 truncate text-xs font-bold sm:inline">{topUserName || 'Profile'}</span>
                 </button>
               )}
               <div className="rounded-full bg-emerald-100 px-2 py-1 text-base font-extrabold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">{Number(item.averageRating).toFixed(1)}</div>
             </div>
           </div>
-        ))}
+        );})}
       </div>
     </section>
   );
