@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, FolderPlus, Heart, Library, Share2, Trash2, TrendingUp, UserRoundCheck, X } from 'lucide-react';
+import { BarChart3, FolderPlus, Heart, Library, Share2, Trash2, TrendingUp, UserRound, UserRoundCheck, X } from 'lucide-react';
 import { api } from '../api.js';
 import { referenceLabel } from '../lib/heat.js';
 
-function RankingList({ icon: Icon, title, items, emptyLabel }) {
+function RankingList({ icon: Icon, title, items, emptyLabel, onNavigate }) {
   const safeItems = Array.isArray(items) ? items : [];
 
   return (
@@ -18,9 +18,25 @@ function RankingList({ icon: Icon, title, items, emptyLabel }) {
           <div key={`${title}-${item.bookId}-${item.chapter}-${item.verse || index}`} className="flex items-center justify-between gap-3 rounded-lg bg-gradient-to-r from-amber-50 to-white px-3 py-2 text-sm shadow-sm dark:from-indigo-950/50 dark:to-slate-950/40">
             <div>
               <div className="font-bold text-slate-900 dark:text-amber-50">{index + 1}. {referenceLabel(item)}</div>
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{item.ratingCount} ratings</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {item.ratingCount} ratings
+                {item.topUserDisplayName || item.topUserEmail ? ` - Top rater: ${item.topUserDisplayName || item.topUserEmail}` : ''}
+              </div>
             </div>
-            <div className="rounded-full bg-emerald-100 px-2 py-1 text-base font-extrabold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">{Number(item.averageRating).toFixed(1)}</div>
+            <div className="flex items-center gap-1">
+              {item.topUserId && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.(`/profile/${item.topUserId}`)}
+                  className="rounded-lg p-2 text-purple-700 transition hover:-translate-y-px hover:bg-purple-100 dark:text-purple-200 dark:hover:bg-purple-950/50"
+                  aria-label={`View profile for ${item.topUserDisplayName || item.topUserEmail || 'top rater'}`}
+                  title="View Profile"
+                >
+                  <UserRound size={16} aria-hidden="true" />
+                </button>
+              )}
+              <div className="rounded-full bg-emerald-100 px-2 py-1 text-base font-extrabold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">{Number(item.averageRating).toFixed(1)}</div>
+            </div>
           </div>
         ))}
       </div>
@@ -248,6 +264,7 @@ export function InsightPanels({
   onClearRating,
   onCreateCollection,
   onDeleteCollection,
+  onNavigate,
   onRemoveFromCollection,
 }) {
   const safeRatings = Array.isArray(myRatings) ? myRatings : [];
@@ -264,8 +281,8 @@ export function InsightPanels({
 
   return (
     <div className="grid gap-4 lg:grid-cols-4">
-      <RankingList icon={BarChart3} title="Leaderboard" items={leaderboard} emptyLabel="No verse ratings yet." />
-      <RankingList icon={TrendingUp} title="Trending this week" items={trending} emptyLabel="No recent ratings yet." />
+      <RankingList icon={BarChart3} title="Leaderboard" items={leaderboard} emptyLabel="No verse ratings yet." onNavigate={onNavigate} />
+      <RankingList icon={TrendingUp} title="Trending this week" items={trending} emptyLabel="No recent ratings yet." onNavigate={onNavigate} />
       <section className="app-card p-4">
         <h3 className="mb-3 inline-flex items-center gap-2 text-lg font-extrabold text-slate-950 dark:text-amber-50">
           <Heart size={18} className="text-purple-700 dark:text-purple-300" aria-hidden="true" />

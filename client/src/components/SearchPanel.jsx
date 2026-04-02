@@ -1,8 +1,8 @@
-import { Search } from 'lucide-react';
+import { BookOpenText, Search, UserRound } from 'lucide-react';
 import React, { useState } from 'react';
 import { api } from '../api.js';
 
-export function SearchPanel() {
+export function SearchPanel({ onNavigate, user }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [status, setStatus] = useState('');
@@ -22,28 +22,49 @@ export function SearchPanel() {
   }
 
   return (
-    <section className="rounded border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <section className="app-card bg-gradient-to-br from-white to-emerald-50/70 p-5 dark:from-slate-950/80 dark:to-emerald-950/30">
+      <div className="mb-4">
+        <h2 className="inline-flex items-center gap-2 text-xl font-extrabold text-slate-950 dark:text-amber-50">
+          <BookOpenText size={20} className="text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
+          Search Scripture
+        </h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Find ESV passages by word, phrase, or reference.</p>
+      </div>
       <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row">
         <label className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-emerald-700 dark:text-emerald-300" size={17} />
           <input
-            className="w-full rounded border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-slate-700 dark:bg-slate-950"
+            className="app-input w-full py-2.5 pl-9 pr-3 text-sm"
             placeholder="Search ESV text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white dark:bg-white dark:text-slate-950">
+        <button type="submit" className="btn-primary">
+          <Search size={16} aria-hidden="true" />
           Search
         </button>
       </form>
-      {status && <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{status}</p>}
+      {status && <p className="mt-3 text-sm font-semibold text-emerald-800 dark:text-emerald-200">{status}</p>}
       {results.length > 0 && (
-        <div className="mt-3 grid gap-2 md:grid-cols-2">
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
           {results.map((result) => (
-            <article key={result.reference} className="rounded bg-slate-50 p-3 text-sm dark:bg-slate-950">
-              <h4 className="font-semibold">{result.reference}</h4>
-              <p className="mt-1 text-slate-600 dark:text-slate-300">{result.content}</p>
+            <article key={result.reference} className="rounded-lg border border-emerald-100 bg-white/85 p-3 text-sm shadow-sm dark:border-emerald-400/20 dark:bg-slate-950/60">
+              <div className="flex items-start justify-between gap-3">
+                <h4 className="font-bold text-slate-950 dark:text-amber-50">{result.reference}</h4>
+                {user && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.(`/profile/${user.id}`)}
+                    className="rounded-lg p-2 text-emerald-700 transition hover:-translate-y-px hover:bg-emerald-50 dark:text-emerald-200 dark:hover:bg-emerald-950/50"
+                    aria-label="View Profile"
+                    title="View Profile"
+                  >
+                    <UserRound size={16} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 leading-6 text-slate-600 dark:text-slate-300">{result.content}</p>
             </article>
           ))}
         </div>

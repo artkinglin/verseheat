@@ -6,6 +6,7 @@ import { BibleBrowser } from './components/BibleBrowser.jsx';
 import { Header } from './components/Header.jsx';
 import { InsightPanels } from './components/InsightPanels.jsx';
 import { SearchPanel } from './components/SearchPanel.jsx';
+import { UserProfile } from './components/UserProfile.jsx';
 import { VerseOfDay } from './components/VerseOfDay.jsx';
 import { useAuth } from './hooks/useAuth.js';
 
@@ -19,6 +20,12 @@ function arrayOrEmpty(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function currentRoute() {
+  const path = window.location.pathname;
+  const profileMatch = path.match(/^\/profile\/([^/]+)/);
+  return profileMatch ? { name: 'profile', userId: profileMatch[1] } : { name: 'home' };
+}
+
 export default function App() {
   const { user, signup, login, logout } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
@@ -29,6 +36,7 @@ export default function App() {
   const [myRatings, setMyRatings] = useState([]);
   const [collections, setCollections] = useState([]);
   const [insightsError, setInsightsError] = useState('');
+  const [route, setRoute] = useState(() => currentRoute());
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
@@ -85,6 +93,17 @@ export default function App() {
       refreshInsights();
     }
   }, [activeTab, refreshInsights]);
+
+  useEffect(() => {
+    const onPopState = () => setRoute(currentRoute());
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  function navigate(path) {
+    window.history.pushState({}, '', path);
+    setRoute(currentRoute());
+  }
 
   async function clearRating(rating) {
     try {
@@ -160,9 +179,9 @@ export default function App() {
           )}
         </div>
 
-        <VerseOfDay user={user} onAuthRequired={() => setAuthOpen(true)} />
+        {route.name === 'home' && <VerseOfDay user={user} onAuthRequired={() => setAuthOpen(true)} />}
 
-        <nav className="app-card flex gap-2 overflow-x-auto p-1.5" aria-label="App sections">
+        {route.name === 'home' && <nav className="app-card flex gap-2 overflow-x-auto p-1.5" aria-label="App sections">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -181,9 +200,26 @@ export default function App() {
               </button>
             );
           })}
-        </nav>
+          {user && (
+            <button
+              type="button"
+              onClick={() => navigate(`/profile/${user.id}`)}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-amber-50 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-indigo-950/60 dark:hover:text-amber-50"
+            >
+              Profile
+            </button>
+          )}
+        </nav>}
 
-        {activeTab === 'heat' && (
+        {route.name === 'profile' && (
+          <UserProfile
+            currentUser={user}
+            onBackHome={() => navigate('/')}
+            onNavigate={navigate}
+          />
+        )}
+
+        {route.name === 'home' && activeTab === 'heat' && (
           <BibleBrowser
             user={user}
             collections={collections}
@@ -193,7 +229,7 @@ export default function App() {
             onRemoveFromCollection={removeVerseFromCollection}
           />
         )}
-        {activeTab === 'insights' && (
+        {route.name === 'home' && activeTab === 'insights' && (
           <>
             {insightsError && (
               <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
@@ -206,13 +242,14 @@ export default function App() {
               onClearRating={clearRating}
               onCreateCollection={createCollection}
               onDeleteCollection={deleteCollection}
+              onNavigate={navigate}
               onRemoveFromCollection={removeVerseFromCollection}
               myRatings={myRatings}
               trending={trending}
             />
           </>
         )}
-        {activeTab === 'search' && <SearchPanel />}
+        {route.name === 'home' && activeTab === 'search' && <SearchPanel onNavigate={navigate} user={user} />}
       </main>
 
       <footer className="mx-auto max-w-7xl px-4 pb-6 text-xs font-medium text-slate-500 dark:text-slate-400 sm:px-6">
