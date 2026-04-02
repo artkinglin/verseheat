@@ -67,4 +67,27 @@ router.get('/me', requireAuth, async (req, res, next) => {
   }
 });
 
+router.post('/restore', requireAuth, async (req, res, next) => {
+  try {
+    const streak = await getStreakPayload(req.user.sub);
+
+    if (!streak.canRestore) {
+      return res.status(409).json({ error: 'No streak restore is available right now', streak });
+    }
+
+    await query(
+      `insert into streak_restores (user_id, restored_day, week_key)
+       values ($1, $2::date, $3::date)`,
+      [req.user.sub, streak.restoreDay, streak.weekKey],
+    );
+
+    return res.status(201).json({ streak: await getStreakPayload(req.user.sub) });
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'This streak restore has already been used' });
+    }
+    return next(error);
+  }
+});
+
 export default router;
