@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, CalendarDays, Heart, Layers3, Library, Star, UserRound } from 'lucide-react';
+import { ArrowLeft, Award, BarChart3, BookOpen, CalendarDays, Flame, Heart, Layers3, Library, PieChart, Star, Target, UserRound } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { referenceLabel } from '../lib/heat.js';
@@ -27,6 +27,194 @@ function StatCard({ icon, label, value }) {
       <div className="text-2xl font-extrabold text-slate-950 dark:text-amber-50">{value}</div>
       <div className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">{label}</div>
     </div>
+  );
+}
+
+function percent(value, total) {
+  return total > 0 ? Math.round((value / total) * 100) : 0;
+}
+
+function activeDayGrid(activeDays) {
+  const activeSet = new Set(activeDays || []);
+  return Array.from({ length: 14 }, (_, index) => {
+    const date = new Date();
+    date.setUTCDate(date.getUTCDate() - (13 - index));
+    const key = date.toISOString().slice(0, 10);
+    return {
+      key,
+      label: date.toLocaleDateString([], { weekday: 'short' }),
+      active: activeSet.has(key),
+    };
+  });
+}
+
+function bookPieBackground(books) {
+  const safeBooks = Array.isArray(books) ? books.slice(0, 8) : [];
+  const total = safeBooks.reduce((sum, book) => sum + book.verseCount, 0);
+  const colors = ['#059669', '#f59e0b', '#7c3aed', '#dc2626', '#2563eb', '#0891b2', '#ca8a04', '#be185d'];
+
+  if (!total) return '#e5e7eb';
+
+  let cursor = 0;
+  const slices = safeBooks.map((book, index) => {
+    const start = cursor;
+    cursor += (book.verseCount / total) * 100;
+    return `${colors[index % colors.length]} ${start}% ${cursor}%`;
+  });
+
+  return `conic-gradient(${slices.join(', ')})`;
+}
+
+function MilestoneBar({ milestone }) {
+  if (!milestone) {
+    return (
+      <div className="rounded-lg bg-emerald-50 p-3 text-sm font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+        Every rating milestone is complete. Keep going.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg bg-white/70 p-3 dark:bg-slate-950/40">
+      <div className="mb-2 flex items-center justify-between gap-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+        <span>Next goal: {milestone.target} verses rated</span>
+        <span>{milestone.remaining} to go</span>
+      </div>
+      <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+        <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-500" style={{ width: `${milestone.progress}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function StatisticsDashboard({ isCurrentUser, statistics }) {
+  const stats = statistics || {};
+  const distribution = Array.isArray(stats.ratingDistribution) ? stats.ratingDistribution : [];
+  const books = Array.isArray(stats.versesRatedPerBook) ? stats.versesRatedPerBook : [];
+  const maxDistribution = Math.max(1, ...distribution.map((item) => item.count));
+  const activeDays = activeDayGrid(stats.activeDays);
+
+  return (
+    <section className="space-y-4">
+      <div className="app-card overflow-hidden bg-gradient-to-r from-emerald-50 via-white to-purple-50 p-4 dark:from-emerald-950/50 dark:via-slate-950/80 dark:to-purple-950/50">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="inline-flex items-center gap-2 text-xl font-extrabold text-slate-950 dark:text-amber-50">
+              <BarChart3 size={20} className="text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
+              {isCurrentUser ? 'Your Statistics' : 'Statistics'}
+            </h3>
+            <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
+              {stats.totalVersesRated ? 'Great job. Keep building your Scripture heat map.' : 'Start rating verses to unlock statistics and achievements.'}
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 text-sm font-extrabold text-emerald-800 dark:bg-slate-950/50 dark:text-emerald-100">
+            <Target size={16} aria-hidden="true" />
+            {stats.nextMilestone ? `${stats.nextMilestone.remaining} ratings to ${stats.nextMilestone.target}` : 'Milestones complete'}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard icon={BookOpen} label="Verses rated" value={stats.totalVersesRated || 0} />
+          <StatCard icon={Star} label="Average rating" value={stats.averageRatingGiven ? `${Number(stats.averageRatingGiven).toFixed(1)}/10` : '--'} />
+          <StatCard icon={Layers3} label="Books touched" value={stats.totalBooksTouched || 0} />
+          <StatCard icon={Flame} label="Day streak" value={stats.streak || 0} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="app-card p-4">
+          <h4 className="mb-4 inline-flex items-center gap-2 text-lg font-extrabold text-slate-950 dark:text-amber-50">
+            <BarChart3 size={18} className="text-amber-600 dark:text-amber-300" aria-hidden="true" />
+            Rating Distribution
+          </h4>
+          <div className="flex h-56 items-end gap-2">
+            {distribution.map((item) => (
+              <div key={item.score} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                <div className="flex h-44 w-full items-end rounded-lg bg-slate-100 dark:bg-slate-900">
+                  <div
+                    className="w-full rounded-lg bg-gradient-to-t from-purple-700 to-amber-400 transition-all"
+                    style={{ height: `${Math.max(6, percent(item.count, maxDistribution))}%` }}
+                    title={`${item.count} ratings of ${item.score}`}
+                  />
+                </div>
+                <div className="text-xs font-extrabold text-slate-600 dark:text-slate-300">{item.score}</div>
+                <div className="text-xs font-bold text-slate-400">{item.count}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="app-card p-4">
+          <h4 className="mb-4 inline-flex items-center gap-2 text-lg font-extrabold text-slate-950 dark:text-amber-50">
+            <PieChart size={18} className="text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
+            Books Rated
+          </h4>
+          <div className="mx-auto h-40 w-40 rounded-full border-8 border-white shadow-inner dark:border-slate-900" style={{ background: bookPieBackground(books) }} />
+          <div className="mt-4 space-y-2">
+            {books.slice(0, 5).map((book) => (
+              <div key={book.bookId} className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-bold text-slate-700 dark:text-slate-200">{book.bookName}</span>
+                <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-extrabold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">{book.verseCount}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <section className="app-card p-4">
+          <h4 className="mb-3 inline-flex items-center gap-2 text-lg font-extrabold text-slate-950 dark:text-amber-50">
+            <CalendarDays size={18} className="text-purple-700 dark:text-purple-300" aria-hidden="true" />
+            Active Days
+          </h4>
+          <div className="grid grid-cols-7 gap-2">
+            {activeDays.map((day) => (
+              <div key={day.key} className={`h-10 rounded-lg border text-center text-[10px] font-bold leading-10 ${
+                day.active
+                  ? 'border-emerald-300 bg-emerald-500 text-white'
+                  : 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-900'
+              }`}>
+                {day.label.slice(0, 1)}
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
+            {stats.streak || 0} consecutive active days.
+          </p>
+        </section>
+
+        <section className="app-card p-4">
+          <h4 className="mb-3 inline-flex items-center gap-2 text-lg font-extrabold text-slate-950 dark:text-amber-50">
+            <Award size={18} className="text-amber-600 dark:text-amber-300" aria-hidden="true" />
+            Achievements
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {stats.achievements?.length > 0 ? stats.achievements.map((badge) => (
+              <span key={badge.id} className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-extrabold text-amber-800 dark:border-amber-300/30 dark:bg-amber-950/40 dark:text-amber-100" title={badge.description}>
+                {badge.label}
+              </span>
+            )) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400">Rate 10 verses to unlock the first badge.</p>
+            )}
+          </div>
+          <div className="mt-3">
+            <MilestoneBar milestone={stats.nextMilestone} />
+          </div>
+        </section>
+
+        <section className="app-card p-4">
+          <h4 className="mb-3 inline-flex items-center gap-2 text-lg font-extrabold text-slate-950 dark:text-amber-50">
+            <Heart size={18} className="text-red-600 dark:text-red-300" aria-hidden="true" />
+            Focus
+          </h4>
+          <div className="space-y-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
+            <p>Favorite Book: <span className="font-extrabold text-slate-950 dark:text-amber-50">{stats.favoriteBook?.bookName || '--'}</span>{stats.favoriteBook ? ` (${stats.favoriteBook.verseCount})` : ''}</p>
+            <p>Most Common Struggle: <span className="font-extrabold text-slate-950 dark:text-amber-50">{stats.mostRatedStruggleCategory?.category || '--'}</span></p>
+            <p>{stats.nextStreakMilestone ? `${stats.nextStreakMilestone.remaining} active days to a ${stats.nextStreakMilestone.target} day streak.` : 'Every streak milestone is complete.'}</p>
+          </div>
+        </section>
+      </div>
+    </section>
   );
 }
 
@@ -95,6 +283,7 @@ export function UserProfile({ currentUser, onBackHome, onNavigate }) {
   const [ratings, setRatings] = useState([]);
   const [ratingsPage, setRatingsPage] = useState(1);
   const [ratingsTotal, setRatingsTotal] = useState(0);
+  const [statistics, setStatistics] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState(() => new window.URLSearchParams(window.location.search).get('collection') || '');
   const [status, setStatus] = useState('');
@@ -123,10 +312,21 @@ export function UserProfile({ currentUser, onBackHome, onNavigate }) {
     }
   }, [userId]);
 
+  const loadStatistics = useCallback(async () => {
+    try {
+      const data = await api(`/api/users/${userId}/statistics`);
+      setStatistics(data.statistics);
+    } catch (error) {
+      setStatistics(null);
+      setStatus(error.message);
+    }
+  }, [userId]);
+
   useEffect(() => {
     loadProfile();
     loadRatings(1);
-  }, [loadProfile, loadRatings]);
+    loadStatistics();
+  }, [loadProfile, loadRatings, loadStatistics]);
 
   const selectedCollection = useMemo(() => (
     profile?.collections?.find((collection) => collection.id === selectedCollectionId)
@@ -184,6 +384,8 @@ export function UserProfile({ currentUser, onBackHome, onNavigate }) {
         <StatCard icon={Star} label="Avg rating" value={stats.averageRatingGiven ? Number(stats.averageRatingGiven).toFixed(1) : '--'} />
         <StatCard icon={Heart} label="Favorites" value={stats.favoriteCount || 0} />
       </div>
+
+      <StatisticsDashboard isCurrentUser={isCurrentUser} statistics={statistics} />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="app-card p-4">

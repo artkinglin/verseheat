@@ -10,10 +10,10 @@ export function RatingControl({ disabled, onClear, onRate, selectedScore }) {
           type="button"
           disabled={disabled}
           onClick={() => onRate(score)}
-          className={`flex h-8 w-8 items-center justify-center rounded border text-xs font-semibold ${
+          className={`flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-bold shadow-sm transition ${
             selectedScore === score
-              ? 'border-yellow-500 bg-yellow-100 text-slate-950'
-              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'
+              ? 'border-amber-500 bg-gradient-to-br from-amber-300 to-amber-500 text-slate-950 shadow-amber-900/20'
+              : 'border-amber-200 bg-white text-slate-700 hover:-translate-y-px hover:border-amber-400 hover:bg-amber-50 dark:border-indigo-400/30 dark:bg-slate-950 dark:text-amber-50 dark:hover:border-amber-300 dark:hover:bg-indigo-950/70'
           } disabled:cursor-not-allowed disabled:opacity-50`}
           aria-label={`Rate ${score} out of 10`}
           title={`Rate ${score} out of 10`}
@@ -26,7 +26,7 @@ export function RatingControl({ disabled, onClear, onRate, selectedScore }) {
           type="button"
           disabled={disabled}
           onClick={onClear}
-          className="inline-flex h-8 items-center gap-1 rounded border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-8 items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 text-xs font-bold text-purple-800 shadow-sm transition hover:-translate-y-px hover:bg-purple-100 dark:border-purple-300/30 dark:bg-purple-950/50 dark:text-purple-100 dark:hover:bg-purple-900/70 disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Clear my rating"
           title="Clear my rating"
         >
