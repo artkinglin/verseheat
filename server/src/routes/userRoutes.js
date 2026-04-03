@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { optionalAuth, requireAuth } from '../auth.js';
 import { query } from '../db.js';
+import { currentStreak, nextStreakMilestone } from '../streaks.js';
 
 const router = Router();
 
@@ -23,7 +24,6 @@ const profileUpdateSchema = z.object({
 
 const ratingScores = Array.from({ length: 10 }, (_, index) => index + 1);
 const ratingMilestones = [10, 25, 50, 100, 250, 500, 1000];
-const streakMilestones = [3, 7, 14, 30, 60, 100];
 
 function publicUser(row) {
   return {
@@ -174,29 +174,6 @@ async function getCollections(userId) {
   }));
 }
 
-function currentUtcDateKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function previousDateKey(dateKey) {
-  const date = new Date(`${dateKey}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() - 1);
-  return date.toISOString().slice(0, 10);
-}
-
-function currentStreak(activeDays) {
-  const activeSet = new Set(activeDays);
-  let cursor = currentUtcDateKey();
-  let streak = 0;
-
-  while (activeSet.has(cursor)) {
-    streak += 1;
-    cursor = previousDateKey(cursor);
-  }
-
-  return streak;
-}
-
 function nextMilestone(value, milestones) {
   return milestones.find((milestone) => milestone > value) || null;
 }
@@ -264,9 +241,16 @@ async function getStatistics(userId) {
       [userId],
     ),
     query(
-      `select distinct (updated_at at time zone 'UTC')::date::text as day
-       from verse_ratings
-       where user_id = $1
+      `select day
+       from (
+         select distinct (updated_at at time zone 'UTC')::date::text as day
+         from verse_ratings
+         where user_id = $1
+         union
+         select distinct restored_day::text as day
+         from streak_restores
+         where user_id = $1
+       ) active_days
        order by day desc
        limit 60`,
       [userId],
@@ -282,7 +266,7 @@ async function getStatistics(userId) {
   const days = activeDays.rows.map((row) => row.day);
   const streak = currentStreak(days);
   const nextRatingMilestone = nextMilestone(summary.totalVersesRated, ratingMilestones);
-  const nextStreakMilestone = nextMilestone(streak, streakMilestones);
+  const streakMilestone = nextStreakMilestone(streak);
 
   return {
     ...summary,
@@ -301,11 +285,7 @@ async function getStatistics(userId) {
       remaining: nextRatingMilestone - summary.totalVersesRated,
       progress: Math.min(100, Math.round((summary.totalVersesRated / nextRatingMilestone) * 100)),
     } : null,
-    nextStreakMilestone: nextStreakMilestone ? {
-      target: nextStreakMilestone,
-      remaining: nextStreakMilestone - streak,
-      progress: Math.min(100, Math.round((streak / nextStreakMilestone) * 100)),
-    } : null,
+    nextStreakMilestone: streakMilestone,
   };
 }
 
