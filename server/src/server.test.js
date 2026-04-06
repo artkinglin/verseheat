@@ -16,4 +16,9 @@ describe('API server', () => {
     assert.equal(response.body.books.length, 66);
     assert.equal(response.body.books[42].name, 'John');
   });
+
+  it('protects streak endpoints', async () => {
+    await request(app).get('/api/streak/me').expect(401);
+    await request(app).post('/api/streak/restore').expect(401);
+  });
 });
