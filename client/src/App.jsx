@@ -7,9 +7,11 @@ import { DiscoverUsers } from './components/DiscoverUsers.jsx';
 import { Header } from './components/Header.jsx';
 import { InsightPanels } from './components/InsightPanels.jsx';
 import { SearchPanel } from './components/SearchPanel.jsx';
+import { StreakCard } from './components/StreakCard.jsx';
 import { UserProfile } from './components/UserProfile.jsx';
 import { VerseOfDay } from './components/VerseOfDay.jsx';
 import { useAuth } from './hooks/useAuth.js';
+import { useStreak } from './hooks/useStreak.js';
 
 const tabs = [
   { id: 'heat', label: 'Heat map', icon: Grid3X3 },
@@ -131,6 +133,7 @@ function FollowingFeed({ user, onAuthOpen, onNavigate }) {
 
 export default function App() {
   const { user, signup, login, logout, updateProfile } = useAuth();
+  const { streak, streakLoading, streakError, refreshStreak, restoreStreak } = useStreak(user);
   const [authOpen, setAuthOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('verseHeatDark') === 'true');
   const [activeTab, setActiveTab] = useState('heat');
@@ -283,7 +286,18 @@ export default function App() {
           )}
         </div>
 
-        {route.name === 'home' && <VerseOfDay user={user} onAuthRequired={() => setAuthOpen(true)} />}
+        {route.name === 'home' && (
+          <StreakCard
+            error={streakError}
+            loading={streakLoading}
+            onAuthRequired={() => setAuthOpen(true)}
+            onRestore={restoreStreak}
+            streak={streak}
+            user={user}
+          />
+        )}
+
+        {route.name === 'home' && <VerseOfDay user={user} onAuthRequired={() => setAuthOpen(true)} onRatingSaved={refreshStreak} />}
 
         {route.name === 'home' && <nav className="app-card flex gap-2 overflow-x-auto p-1.5" aria-label="App sections">
           {tabs.map((tab) => {
@@ -357,6 +371,7 @@ export default function App() {
             onAddToCollection={addVerseToCollection}
             onAuthRequired={() => setAuthOpen(true)}
             onCreateCollection={createCollection}
+            onRatingSaved={refreshStreak}
             onRemoveFromCollection={removeVerseFromCollection}
           />
         )}

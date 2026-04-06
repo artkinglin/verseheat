@@ -11,7 +11,7 @@ function formatCountdown(milliseconds) {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-export function VerseOfDay({ user, onAuthRequired }) {
+export function VerseOfDay({ user, onAuthRequired, onRatingSaved }) {
   const [verse, setVerse] = useState(null);
   const [selectedScore, setSelectedScore] = useState(null);
   const [status, setStatus] = useState('');
@@ -83,6 +83,7 @@ export function VerseOfDay({ user, onAuthRequired }) {
       });
       setStatus('Rating saved');
       await loadVerse();
+      await onRatingSaved?.();
       setSelectedScore(score);
     } catch (error) {
       setStatus(error.message);

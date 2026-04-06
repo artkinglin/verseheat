@@ -104,6 +104,7 @@ export function BibleBrowser({
   onAddToCollection,
   onAuthRequired,
   onCreateCollection,
+  onRatingSaved,
   onRemoveFromCollection,
 }) {
   const [books, setBooks] = useState([]);
@@ -347,6 +348,7 @@ export function BibleBrowser({
       selectedBook && selectedChapter ? loadVerseRatings(selectedBook, selectedChapter) : Promise.resolve(),
       loadMyRatings(),
       selectedStruggles.length > 0 ? loadStruggleVerses() : Promise.resolve(),
+      onRatingSaved?.() || Promise.resolve(),
     ]);
     setMessage('Rating saved');
   }
