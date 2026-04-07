@@ -21,4 +21,8 @@ describe('API server', () => {
     await request(app).get('/api/streak/me').expect(401);
     await request(app).post('/api/streak/restore').expect(401);
   });
+
+  it('protects mission endpoints', async () => {
+    await request(app).get('/api/missions/today').expect(401);
+  });
 });
