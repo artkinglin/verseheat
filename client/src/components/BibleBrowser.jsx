@@ -406,6 +406,7 @@ export function BibleBrowser({
       }),
     });
     await loadMyRatings();
+    await onRatingSaved?.();
     setMessage(favorite ? 'Favorite saved' : 'Favorite removed');
   }
 

@@ -3,6 +3,7 @@ import { BarChart3, Flame, Grid3X3, Search, UserPlus, UsersRound } from 'lucide-
 import { api } from './api.js';
 import { AuthModal } from './components/AuthModal.jsx';
 import { BibleBrowser } from './components/BibleBrowser.jsx';
+import { DailyMissionCard } from './components/DailyMissionCard.jsx';
 import { DiscoverUsers } from './components/DiscoverUsers.jsx';
 import { Header } from './components/Header.jsx';
 import { InsightPanels } from './components/InsightPanels.jsx';
@@ -11,6 +12,7 @@ import { StreakCard } from './components/StreakCard.jsx';
 import { UserProfile } from './components/UserProfile.jsx';
 import { VerseOfDay } from './components/VerseOfDay.jsx';
 import { useAuth } from './hooks/useAuth.js';
+import { useDailyMission } from './hooks/useDailyMission.js';
 import { useStreak } from './hooks/useStreak.js';
 
 const tabs = [
@@ -134,6 +136,7 @@ function FollowingFeed({ user, onAuthOpen, onNavigate }) {
 export default function App() {
   const { user, signup, login, logout, updateProfile } = useAuth();
   const { streak, streakLoading, streakError, refreshStreak, restoreStreak } = useStreak(user);
+  const { mission, missionLoading, missionError, refreshMission } = useDailyMission(user);
   const [authOpen, setAuthOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('verseHeatDark') === 'true');
   const [activeTab, setActiveTab] = useState('heat');
@@ -211,6 +214,18 @@ export default function App() {
     setRoute(currentRoute());
   }
 
+  const refreshDailyProgress = useCallback(async () => {
+    await Promise.all([
+      refreshStreak(),
+      refreshMission(),
+    ]);
+  }, [refreshMission, refreshStreak]);
+
+  function openMissionTarget() {
+    navigate('/');
+    setActiveTab('heat');
+  }
+
   async function clearRating(rating) {
     try {
       await api(`/api/ratings/verse/${rating.bookId}/${rating.chapter}/${rating.verse}`, {
@@ -246,6 +261,7 @@ export default function App() {
       }),
     });
     await refreshCollections();
+    await refreshMission();
   }
 
   async function removeVerseFromCollection(collectionId, verse) {
@@ -297,7 +313,18 @@ export default function App() {
           />
         )}
 
-        {route.name === 'home' && <VerseOfDay user={user} onAuthRequired={() => setAuthOpen(true)} onRatingSaved={refreshStreak} />}
+        {route.name === 'home' && (
+          <DailyMissionCard
+            error={missionError}
+            loading={missionLoading}
+            mission={mission}
+            onAction={openMissionTarget}
+            onAuthRequired={() => setAuthOpen(true)}
+            user={user}
+          />
+        )}
+
+        {route.name === 'home' && <VerseOfDay user={user} onAuthRequired={() => setAuthOpen(true)} onRatingSaved={refreshDailyProgress} />}
 
         {route.name === 'home' && <nav className="app-card flex gap-2 overflow-x-auto p-1.5" aria-label="App sections">
           {tabs.map((tab) => {
@@ -371,7 +398,7 @@ export default function App() {
             onAddToCollection={addVerseToCollection}
             onAuthRequired={() => setAuthOpen(true)}
             onCreateCollection={createCollection}
-            onRatingSaved={refreshStreak}
+            onRatingSaved={refreshDailyProgress}
             onRemoveFromCollection={removeVerseFromCollection}
           />
         )}
