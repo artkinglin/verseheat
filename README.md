@@ -4,6 +4,8 @@ Verse Heat is a full-stack MVP for rating ESV Bible verses with a red-to-yellow-
 
 Daily engagement features include authenticated streak tracking with weekly restores and a personalized daily mission that points users toward rating, favoriting, saving, or theme-focused exploration.
 
+The daily mission is served from `GET /api/missions/today` and refreshes as users complete rating, favorite, and collection-save actions.
+
 ## Stack
 
 - React, Vite, Tailwind CSS
