@@ -101,6 +101,7 @@ function VerseCollectionControls({
 export function BibleBrowser({
   user,
   collections = [],
+  focusStruggle = '',
   onAddToCollection,
   onAuthRequired,
   onCreateCollection,
@@ -203,6 +204,16 @@ export function BibleBrowser({
       ignore = true;
     };
   }, [loadBookRatings]);
+
+  useEffect(() => {
+    if (!focusStruggle) return;
+
+    setSelectedBook(null);
+    setSelectedChapter(null);
+    setSelectedStruggles((current) => (
+      current.length === 1 && current[0] === focusStruggle ? current : [focusStruggle]
+    ));
+  }, [focusStruggle]);
 
   useEffect(() => {
     if (!selectedBook || !selectedChapter) {

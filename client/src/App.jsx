@@ -145,6 +145,7 @@ export default function App() {
   const [myRatings, setMyRatings] = useState([]);
   const [collections, setCollections] = useState([]);
   const [insightsError, setInsightsError] = useState('');
+  const [missionFocusTheme, setMissionFocusTheme] = useState('');
   const [route, setRoute] = useState(() => currentRoute());
 
   useEffect(() => {
@@ -222,6 +223,7 @@ export default function App() {
   }, [refreshMission, refreshStreak]);
 
   function openMissionTarget() {
+    setMissionFocusTheme(mission?.theme || '');
     navigate('/');
     setActiveTab('heat');
   }
@@ -395,6 +397,7 @@ export default function App() {
           <BibleBrowser
             user={user}
             collections={collections}
+            focusStruggle={missionFocusTheme}
             onAddToCollection={addVerseToCollection}
             onAuthRequired={() => setAuthOpen(true)}
             onCreateCollection={createCollection}
