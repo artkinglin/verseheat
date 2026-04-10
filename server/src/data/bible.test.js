@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { books, getBook, getChapterVerseCount } from './bible.js';
+import { books, getBibleVerseCount, getBook, getBookVerseCount, getChapterVerseCount } from './bible.js';
 
 describe('Bible metadata', () => {
   it('contains all canonical books', () => {
@@ -13,5 +13,11 @@ describe('Bible metadata', () => {
     assert.equal(getBook(43).name, 'John');
     assert.equal(getChapterVerseCount(43, 11), 57);
     assert.equal(getChapterVerseCount(19, 119), 176);
+  });
+
+  it('returns aggregate verse totals', () => {
+    assert.equal(getBookVerseCount(19), 2463);
+    assert.equal(getBookVerseCount(43), 879);
+    assert.equal(getBibleVerseCount(), 31104);
   });
 });

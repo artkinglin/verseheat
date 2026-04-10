@@ -75,3 +75,14 @@ export function getChapterVerseCount(bookId, chapter) {
   const book = getBook(bookId);
   return book?.verses[Number(chapter) - 1] || 0;
 }
+
+export function getBookVerseCount(bookId) {
+  const book = getBook(bookId);
+  return book?.verses.reduce((sum, verseCount) => sum + verseCount, 0) || 0;
+}
+
+export function getBibleVerseCount() {
+  return books.reduce((sum, book) => (
+    sum + book.verses.reduce((bookSum, verseCount) => bookSum + verseCount, 0)
+  ), 0);
+}
