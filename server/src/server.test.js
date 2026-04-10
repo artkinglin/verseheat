@@ -25,4 +25,8 @@ describe('API server', () => {
   it('protects mission endpoints', async () => {
     await request(app).get('/api/missions/today').expect(401);
   });
+
+  it('protects completion endpoints', async () => {
+    await request(app).get('/api/completion/me').expect(401);
+  });
 });

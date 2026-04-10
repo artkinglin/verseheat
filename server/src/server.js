@@ -8,6 +8,7 @@ import { ZodError } from 'zod';
 import { config } from './config.js';
 import authRoutes from './routes/authRoutes.js';
 import bibleRoutes from './routes/bibleRoutes.js';
+import completionRoutes from './routes/completionRoutes.js';
 import collectionRoutes from './routes/collectionRoutes.js';
 import esvRoutes from './routes/esvRoutes.js';
 import feedRoutes from './routes/feedRoutes.js';
@@ -48,6 +49,7 @@ export function createApp({ serveClient = config.nodeEnv === 'production' } = {}
 
   app.use('/api/auth', authRoutes);
   app.use('/api/bible', bibleRoutes);
+  app.use('/api/completion', completionRoutes);
   app.use('/api/collections', collectionRoutes);
   app.use('/api/esv', esvRoutes);
   app.use('/api/feed', feedRoutes);
