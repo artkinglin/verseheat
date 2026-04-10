@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { optionalAuth, requireAuth } from '../auth.js';
+import { compactCompletionSummary, buildCompletionSummary } from '../completion.js';
 import { query } from '../db.js';
 import { currentStreak, nextStreakMilestone } from '../streaks.js';
 
@@ -197,6 +198,7 @@ async function getStatistics(userId) {
     distribution,
     struggleCategory,
     activeDays,
+    completionRows,
   ] = await Promise.all([
     query(
       `select count(*)::int as "totalVersesRated",
@@ -255,6 +257,12 @@ async function getStatistics(userId) {
        limit 60`,
       [userId],
     ),
+    query(
+      `select book_id, chapter, verse
+       from verse_ratings
+       where user_id = $1`,
+      [userId],
+    ),
   ]);
 
   const summary = {
@@ -267,6 +275,7 @@ async function getStatistics(userId) {
   const streak = currentStreak(days);
   const nextRatingMilestone = nextMilestone(summary.totalVersesRated, ratingMilestones);
   const streakMilestone = nextStreakMilestone(streak);
+  const completion = compactCompletionSummary(buildCompletionSummary(completionRows.rows));
 
   return {
     ...summary,
@@ -280,6 +289,7 @@ async function getStatistics(userId) {
     streak,
     activeDays: days,
     achievements: achievementBadges(summary.totalVersesRated, streak),
+    completion,
     nextMilestone: nextRatingMilestone ? {
       target: nextRatingMilestone,
       remaining: nextRatingMilestone - summary.totalVersesRated,
