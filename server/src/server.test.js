@@ -15,6 +15,7 @@ describe('API server', () => {
     const response = await request(app).get('/api/bible/books').expect(200);
     assert.equal(response.body.books.length, 66);
     assert.equal(response.body.books[42].name, 'John');
+    assert.equal(response.body.books[42].verseCount, 879);
   });
 
   it('protects streak endpoints', async () => {

@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { books, getBook } from '../data/bible.js';
+import { books, getBook, getBookVerseCount } from '../data/bible.js';
 
 const router = Router();
 
 router.get('/books', (req, res) => {
   res.json({
-    books: books.map(({ id, name, abbr, chapters }) => ({ id, name, abbr, chapters })),
+    books: books.map(({ id, name, abbr, chapters }) => ({ id, name, abbr, chapters, verseCount: getBookVerseCount(id) })),
   });
 });
 
