@@ -19,6 +19,18 @@ export function HeatGrid({ items, onSelect, emptyLabel = 'No items found' }) {
           <span className="block text-sm font-semibold leading-tight">{item.title}</span>
           <span className="mt-2 block text-xl font-bold">{scoreLabel(item.averageRating)}</span>
           <span className="mt-1 block text-xs">{item.ratingCount || 0} ratings</span>
+          {item.completion && (
+            <span className="mt-3 block">
+              <span className="flex items-center justify-between gap-2 text-[10px] font-extrabold uppercase">
+                <span>Personal</span>
+                <span>{item.completion.percent}%</span>
+              </span>
+              <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-white/55">
+                <span className="block h-full rounded-full bg-slate-950/70" style={{ width: `${item.completion.percent}%` }} />
+              </span>
+              <span className="mt-1 block text-[10px] font-bold">{item.completion.rated}/{item.completion.total} rated</span>
+            </span>
+          )}
         </button>
       ))}
     </div>
