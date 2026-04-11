@@ -12,6 +12,7 @@ export function toRatedVerseSet(ratings = []) {
 
 export function bookVerseTotal(book) {
   if (!book) return 0;
+  if (book.verseCount) return book.verseCount;
   if (Array.isArray(book.chapters)) {
     return book.chapters.reduce((sum, chapter) => sum + (chapter.verseCount || 0), 0);
   }
