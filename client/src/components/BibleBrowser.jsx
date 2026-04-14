@@ -300,6 +300,7 @@ export function BibleBrowser({
       title: `${selectedBook.name} ${chapter.chapter}`,
       averageRating: aggregate?.averageRating,
       ratingCount: aggregate?.ratingCount,
+      completion: chapterCompletion(selectedBook.id, chapter, myRatings),
       chapter,
     };
   }) : [];
