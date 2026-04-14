@@ -1,6 +1,7 @@
 import { ArrowLeft, BookOpen, FolderPlus, Heart, Search, SlidersHorizontal, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
+import { bookCompletion, chapterCompletion, toRatedVerseSet, verseCompletion } from '../lib/completion.js';
 import { aggregateKey, toAggregateMap } from '../lib/ratings.js';
 import { HeatGrid } from './HeatGrid.jsx';
 import { RatingControl } from './RatingControl.jsx';
@@ -267,6 +268,7 @@ export function BibleBrowser({
   const chapterRatingMap = useMemo(() => toAggregateMap(chapterRatings), [chapterRatings]);
   const verseRatingMap = useMemo(() => toAggregateMap(verseRatings), [verseRatings]);
   const myRatingMap = useMemo(() => toAggregateMap(myRatings), [myRatings]);
+  const ratedVerseSet = useMemo(() => toRatedVerseSet(myRatings), [myRatings]);
   const filteredBooks = useMemo(
     () => books.filter((book) => book.name.toLowerCase().includes(query.toLowerCase())),
     [books, query],
@@ -282,6 +284,7 @@ export function BibleBrowser({
       title: book.name,
       averageRating: rating?.averageRating,
       ratingCount: rating?.ratingCount,
+      completion: bookCompletion(book, myRatings),
       book,
     };
   });
