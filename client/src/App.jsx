@@ -3,6 +3,7 @@ import { BarChart3, Flame, Grid3X3, Search, UserPlus, UsersRound } from 'lucide-
 import { api } from './api.js';
 import { AuthModal } from './components/AuthModal.jsx';
 import { BibleBrowser } from './components/BibleBrowser.jsx';
+import { CompletionDashboard } from './components/CompletionDashboard.jsx';
 import { DailyMissionCard } from './components/DailyMissionCard.jsx';
 import { DiscoverUsers } from './components/DiscoverUsers.jsx';
 import { Header } from './components/Header.jsx';
@@ -12,6 +13,7 @@ import { StreakCard } from './components/StreakCard.jsx';
 import { UserProfile } from './components/UserProfile.jsx';
 import { VerseOfDay } from './components/VerseOfDay.jsx';
 import { useAuth } from './hooks/useAuth.js';
+import { useCompletion } from './hooks/useCompletion.js';
 import { useDailyMission } from './hooks/useDailyMission.js';
 import { useStreak } from './hooks/useStreak.js';
 
@@ -137,6 +139,7 @@ export default function App() {
   const { user, signup, login, logout, updateProfile } = useAuth();
   const { streak, streakLoading, streakError, refreshStreak, restoreStreak } = useStreak(user);
   const { mission, missionLoading, missionError, refreshMission } = useDailyMission(user);
+  const { completion, completionLoading, completionError, refreshCompletion } = useCompletion(user);
   const [authOpen, setAuthOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('verseHeatDark') === 'true');
   const [activeTab, setActiveTab] = useState('heat');
@@ -219,8 +222,9 @@ export default function App() {
     await Promise.all([
       refreshStreak(),
       refreshMission(),
+      refreshCompletion(),
     ]);
-  }, [refreshMission, refreshStreak]);
+  }, [refreshCompletion, refreshMission, refreshStreak]);
 
   function openMissionTarget() {
     setMissionFocusTheme(mission?.theme || '');
@@ -321,6 +325,16 @@ export default function App() {
             loading={missionLoading}
             mission={mission}
             onAction={openMissionTarget}
+            onAuthRequired={() => setAuthOpen(true)}
+            user={user}
+          />
+        )}
+
+        {route.name === 'home' && (
+          <CompletionDashboard
+            completion={completion}
+            error={completionError}
+            loading={completionLoading}
             onAuthRequired={() => setAuthOpen(true)}
             user={user}
           />
