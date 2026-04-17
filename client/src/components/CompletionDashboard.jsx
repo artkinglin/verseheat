@@ -16,10 +16,10 @@ function ProgressRow({ book }) {
   );
 }
 
-function Stat({ icon: Icon, label, value }) {
+function Stat({ icon, label, value }) {
   return (
     <div className="rounded-lg bg-white/75 p-3 shadow-sm dark:bg-slate-950/45">
-      <Icon size={17} className="mb-2 text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
+      {React.createElement(icon, { size: 17, className: 'mb-2 text-emerald-700 dark:text-emerald-300', 'aria-hidden': 'true' })}
       <div className="text-xl font-extrabold text-slate-950 dark:text-amber-50">{value}</div>
       <div className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">{label}</div>
     </div>
