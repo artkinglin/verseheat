@@ -6,6 +6,8 @@ Daily engagement features include authenticated streak tracking with weekly rest
 
 The daily mission is served from `GET /api/missions/today` and refreshes as users complete rating, favorite, and collection-save actions.
 
+Personal completion maps are served from `GET /api/completion/me`; the client overlays book, chapter, and verse completion on the heat map and summarizes whole-Bible progress on home and profile views.
+
 ## Stack
 
 - React, Vite, Tailwind CSS
