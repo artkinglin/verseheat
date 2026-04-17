@@ -102,6 +102,49 @@ function MilestoneBar({ milestone }) {
   );
 }
 
+function ProfileCompletionPanel({ completion }) {
+  if (!completion) return null;
+
+  const leadingBooks = Array.isArray(completion.books)
+    ? completion.books
+      .filter((book) => book.ratedVerses > 0)
+      .sort((a, b) => b.completionPercent - a.completionPercent || b.ratedVerses - a.ratedVerses)
+      .slice(0, 5)
+    : [];
+
+  return (
+    <section className="app-card p-4">
+      <h4 className="mb-3 inline-flex items-center gap-2 text-lg font-extrabold text-slate-950 dark:text-amber-50">
+        <Target size={18} className="text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
+        Completion Map
+      </h4>
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <div className="text-3xl font-extrabold text-slate-950 dark:text-amber-50">{completion.completionPercent || 0}%</div>
+          <div className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Bible rated</div>
+        </div>
+        <div className="text-right text-sm font-bold text-slate-600 dark:text-slate-300">
+          <div>{completion.ratedVerses || 0}/{completion.totalVerses || 0} verses</div>
+          <div>{completion.booksCompleted || 0}/{completion.totalBooks || 66} books complete</div>
+        </div>
+      </div>
+      <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-900">
+        <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-purple-700" style={{ width: `${completion.completionPercent || 0}%` }} />
+      </div>
+      <div className="space-y-2">
+        {leadingBooks.length > 0 ? leadingBooks.map((book) => (
+          <div key={book.bookId} className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm dark:bg-emerald-950/30">
+            <span className="font-extrabold text-slate-900 dark:text-amber-50">{book.bookName}</span>
+            <span className="text-xs font-extrabold text-emerald-800 dark:text-emerald-100">{book.completionPercent}%</span>
+          </div>
+        )) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400">No completion progress yet.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function StatisticsDashboard({ isCurrentUser, statistics }) {
   const stats = statistics || {};
   const distribution = Array.isArray(stats.ratingDistribution) ? stats.ratingDistribution : [];
@@ -228,6 +271,8 @@ function StatisticsDashboard({ isCurrentUser, statistics }) {
             <p>{stats.nextStreakMilestone ? `${stats.nextStreakMilestone.remaining} active days to a ${stats.nextStreakMilestone.target} day streak.` : 'Every streak milestone is complete.'}</p>
           </div>
         </section>
+
+        <ProfileCompletionPanel completion={stats.completion} />
       </div>
     </section>
   );
