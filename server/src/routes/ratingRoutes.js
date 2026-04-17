@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../auth.js';
 import { query } from '../db.js';
+import { getBaselineBookRating, getBaselineChapterRating, getBaselineVerseRating } from '../data/baselineRatings.js';
 import { getBook, getChapterVerseCount } from '../data/bible.js';
 import { normalizeStruggleList, struggleGroups, struggleNames } from '../data/struggles.js';
 
@@ -37,29 +38,34 @@ function validateReference(input) {
 }
 
 function emptyBookRating(book) {
+  const baselineRating = getBaselineBookRating(book.id);
   return {
     scope: 'book',
     bookId: book.id,
     bookName: book.name,
     ratingCount: 0,
-    averageRating: null,
+    averageRating: baselineRating,
+    baselineRating,
     lastRatedAt: null,
   };
 }
 
 function emptyChapterRating(book, chapter) {
+  const baselineRating = getBaselineChapterRating(book.id, chapter);
   return {
     scope: 'chapter',
     bookId: book.id,
     bookName: book.name,
     chapter,
     ratingCount: 0,
-    averageRating: null,
+    averageRating: baselineRating,
+    baselineRating,
     lastRatedAt: null,
   };
 }
 
 function emptyVerseRating(book, chapter, verse) {
+  const baselineRating = getBaselineVerseRating(book.id, chapter, verse);
   return {
     scope: 'verse',
     bookId: book.id,
@@ -67,8 +73,21 @@ function emptyVerseRating(book, chapter, verse) {
     chapter,
     verse,
     ratingCount: 0,
-    averageRating: null,
+    averageRating: baselineRating,
+    baselineRating,
     lastRatedAt: null,
+  };
+}
+
+function applyUserAggregate(emptyRating, row) {
+  if (!row || !row.ratingCount || row.averageRating === null) {
+    return emptyRating;
+  }
+
+  return {
+    ...emptyRating,
+    ...row,
+    baselineRating: emptyRating.baselineRating,
   };
 }
 
@@ -76,7 +95,7 @@ function bookRatingRows(rows) {
   const rowMap = new Map(rows.map((row) => [row.bookId, row]));
   return Array.from({ length: 66 }, (_, index) => {
     const book = getBook(index + 1);
-    return { ...emptyBookRating(book), ...rowMap.get(book.id) };
+    return applyUserAggregate(emptyBookRating(book), rowMap.get(book.id));
   });
 }
 
@@ -84,7 +103,7 @@ function chapterRatingRows(book, rows) {
   const rowMap = new Map(rows.map((row) => [row.chapter, row]));
   return Array.from({ length: book.chapters }, (_, index) => {
     const chapter = index + 1;
-    return { ...emptyChapterRating(book, chapter), ...rowMap.get(chapter) };
+    return applyUserAggregate(emptyChapterRating(book, chapter), rowMap.get(chapter));
   });
 }
 
@@ -93,7 +112,7 @@ function verseRatingRows(book, chapter, rows) {
   const rowMap = new Map(rows.map((row) => [row.verse, row]));
   return Array.from({ length: verseCount }, (_, index) => {
     const verse = index + 1;
-    return { ...emptyVerseRating(book, chapter, verse), ...rowMap.get(verse) };
+    return applyUserAggregate(emptyVerseRating(book, chapter, verse), rowMap.get(verse));
   });
 }
 
@@ -187,7 +206,7 @@ async function getBookRating(bookId) {
     [book.id],
   );
 
-  return { ...emptyBookRating(book), ...result.rows[0] };
+  return applyUserAggregate(emptyBookRating(book), result.rows[0]);
 }
 
 async function getChapterRating(bookId, chapter) {
@@ -203,7 +222,7 @@ async function getChapterRating(bookId, chapter) {
     [book.id, chapter],
   );
 
-  return { ...emptyChapterRating(book, chapter), ...result.rows[0] };
+  return applyUserAggregate(emptyChapterRating(book, chapter), result.rows[0]);
 }
 
 async function getVerseRating(bookId, chapter, verse) {
@@ -219,7 +238,7 @@ async function getVerseRating(bookId, chapter, verse) {
     [book.id, chapter, verse],
   );
 
-  return { ...emptyVerseRating(book, chapter, verse), ...result.rows[0] };
+  return applyUserAggregate(emptyVerseRating(book, chapter, verse), result.rows[0]);
 }
 
 router.get('/aggregates', async (req, res, next) => {
@@ -305,7 +324,16 @@ router.get('/struggles', async (req, res, next) => {
       [selected],
     );
 
-    return res.json({ struggles: struggleGroups, selected, verses: result.rows });
+    const verses = result.rows.map((row) => {
+      const baselineRating = getBaselineVerseRating(row.bookId, row.chapter, row.verse);
+      return {
+        ...row,
+        averageRating: row.ratingCount ? row.averageRating : baselineRating,
+        baselineRating,
+      };
+    });
+
+    return res.json({ struggles: struggleGroups, selected, verses });
   } catch (error) {
     return next(error);
   }

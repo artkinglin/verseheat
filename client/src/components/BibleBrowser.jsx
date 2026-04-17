@@ -692,7 +692,7 @@ export function BibleBrowser({
                     return (
                       <div key={item.key} className="app-card p-3 transition hover:-translate-y-px hover:shadow-md hover:shadow-amber-950/10">
                         <div className="mb-2 text-sm font-bold text-slate-900 dark:text-amber-50">{item.title}</div>
-                        <div className="mb-2 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{item.averageRating ? `${item.averageRating} avg, ${item.ratingCount} ratings` : 'Unrated'}</div>
+                        <div className="mb-2 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{item.ratingCount ? `${item.averageRating} avg, ${item.ratingCount} ratings` : `${item.averageRating} baseline`}</div>
                         <div className={`mb-2 rounded-full px-2 py-1 text-xs font-extrabold ${
                           item.completion.complete
                             ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-100'
