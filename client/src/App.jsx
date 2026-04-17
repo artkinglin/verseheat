@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BarChart3, Flame, Grid3X3, Search, UserPlus, UsersRound } from 'lucide-react';
+import { BarChart3, Flame, Grid3X3, Search, UserPlus, UserRoundCheck, UsersRound } from 'lucide-react';
 import { api } from './api.js';
 import { AuthModal } from './components/AuthModal.jsx';
 import { BibleBrowser } from './components/BibleBrowser.jsx';
@@ -18,7 +18,8 @@ import { useDailyMission } from './hooks/useDailyMission.js';
 import { useStreak } from './hooks/useStreak.js';
 
 const tabs = [
-  { id: 'heat', label: 'Heat map', icon: Grid3X3 },
+  { id: 'heat', label: 'My heat map', icon: UserRoundCheck },
+  { id: 'global', label: 'Global ratings', icon: Grid3X3 },
   { id: 'insights', label: 'Insights', icon: BarChart3 },
   { id: 'search', label: 'Search', icon: Search },
 ];
@@ -229,7 +230,7 @@ export default function App() {
   function openMissionTarget() {
     setMissionFocusTheme(mission?.theme || '');
     navigate('/');
-    setActiveTab('heat');
+    setActiveTab('global');
   }
 
   async function clearRating(rating) {
@@ -415,6 +416,20 @@ export default function App() {
             user={user}
             collections={collections}
             focusStruggle={missionFocusTheme}
+            heatmapMode="personal"
+            onAddToCollection={addVerseToCollection}
+            onAuthRequired={() => setAuthOpen(true)}
+            onCreateCollection={createCollection}
+            onRatingSaved={refreshDailyProgress}
+            onRemoveFromCollection={removeVerseFromCollection}
+          />
+        )}
+        {route.name === 'home' && activeTab === 'global' && (
+          <BibleBrowser
+            user={user}
+            collections={collections}
+            focusStruggle={missionFocusTheme}
+            heatmapMode="global"
             onAddToCollection={addVerseToCollection}
             onAuthRequired={() => setAuthOpen(true)}
             onCreateCollection={createCollection}

@@ -18,7 +18,7 @@ export function HeatGrid({ items, onSelect, emptyLabel = 'No items found' }) {
         >
           <span className="block text-sm font-semibold leading-tight">{item.title}</span>
           <span className="mt-2 block text-xl font-bold">{scoreLabel(item.averageRating)}</span>
-          <span className="mt-1 block text-xs">{item.ratingCount ? `${item.ratingCount} ratings` : 'Baseline'}</span>
+          <span className="mt-1 block text-xs">{item.detailLabel ?? (item.ratingCount ? `${item.ratingCount} ratings` : 'Baseline')}</span>
           {item.completion && (
             <span className="mt-3 block">
               <span className="flex items-center justify-between gap-2 text-[10px] font-extrabold uppercase">

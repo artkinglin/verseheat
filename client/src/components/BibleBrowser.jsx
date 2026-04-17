@@ -103,6 +103,7 @@ export function BibleBrowser({
   user,
   collections = [],
   focusStruggle = '',
+  heatmapMode = 'global',
   onAddToCollection,
   onAuthRequired,
   onCreateCollection,
@@ -276,31 +277,60 @@ export function BibleBrowser({
   const struggleLabel = selectedStruggles.length === 1
     ? selectedStruggles[0]
     : selectedStruggles.join(', ');
+  const isPersonalHeatmap = heatmapMode === 'personal';
+
+  function ownAverage(ratings) {
+    if (!ratings.length) return undefined;
+    const total = ratings.reduce((sum, rating) => sum + Number(rating.score || 0), 0);
+    return Number((total / ratings.length).toFixed(2));
+  }
+
+  function personalDetailLabel(count) {
+    if (!count) return user ? 'Not rated by you' : 'Sign in to rate';
+    return count === 1 ? '1 rating by you' : `${count} ratings by you`;
+  }
 
   const bookItems = filteredBooks.map((book) => {
-    const rating = bookRatingMap.get(book.id);
+    const ownRatings = myRatings.filter((rating) => rating.bookId === book.id);
+    const rating = isPersonalHeatmap
+      ? {
+          averageRating: ownAverage(ownRatings),
+          ratingCount: ownRatings.length,
+        }
+      : bookRatingMap.get(book.id);
     return {
       key: book.id,
       title: book.name,
       averageRating: rating?.averageRating,
       ratingCount: rating?.ratingCount,
-      completion: bookCompletion(book, myRatings),
+      detailLabel: isPersonalHeatmap ? personalDetailLabel(rating?.ratingCount || 0) : undefined,
+      completion: isPersonalHeatmap ? undefined : bookCompletion(book, myRatings),
       book,
     };
   });
 
   const chapterItems = Array.isArray(selectedBook?.chapters) ? selectedBook.chapters.map((chapter) => {
+    const ownRatings = myRatings.filter((rating) => (
+      rating.bookId === selectedBook.id && rating.chapter === chapter.chapter
+    ));
     const aggregate = chapterRatingMap.get(aggregateKey({
       scope: 'chapter',
       bookId: selectedBook.id,
       chapter: chapter.chapter,
     }));
+    const rating = isPersonalHeatmap
+      ? {
+          averageRating: ownAverage(ownRatings),
+          ratingCount: ownRatings.length,
+        }
+      : aggregate;
     return {
       key: chapter.chapter,
       title: `${selectedBook.name} ${chapter.chapter}`,
-      averageRating: aggregate?.averageRating,
-      ratingCount: aggregate?.ratingCount,
-      completion: chapterCompletion(selectedBook.id, chapter, myRatings),
+      averageRating: rating?.averageRating,
+      ratingCount: rating?.ratingCount,
+      detailLabel: isPersonalHeatmap ? personalDetailLabel(rating?.ratingCount || 0) : undefined,
+      completion: isPersonalHeatmap ? undefined : chapterCompletion(selectedBook.id, chapter, myRatings),
       chapter,
     };
   }) : [];
@@ -319,13 +349,20 @@ export function BibleBrowser({
       chapter: selectedChapter.chapter,
       verse,
     }));
+    const rating = isPersonalHeatmap && myRating
+      ? {
+          averageRating: myRating.score,
+          ratingCount: 1,
+        }
+      : aggregate;
     return {
       key: verse,
       title: `Verse ${verse}`,
-      averageRating: aggregate?.averageRating,
-      ratingCount: aggregate?.ratingCount,
+      averageRating: rating?.averageRating,
+      ratingCount: rating?.ratingCount,
       myRating,
-      completion: verseCompletion(selectedBook.id, selectedChapter.chapter, verse, ratedVerseSet),
+      detailLabel: isPersonalHeatmap ? personalDetailLabel(rating?.ratingCount || 0) : undefined,
+      completion: isPersonalHeatmap ? undefined : verseCompletion(selectedBook.id, selectedChapter.chapter, verse, ratedVerseSet),
       verse,
     };
   }) : [];
@@ -545,8 +582,12 @@ export function BibleBrowser({
             <BookOpen size={14} aria-hidden="true" />
             Bible browser
           </div>
-          <h2 className="section-heading text-2xl font-extrabold">Bible heat map</h2>
-          <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">Rate verses from 1 to 10. Chapter and book heat update automatically.</p>
+          <h2 className="section-heading text-2xl font-extrabold">{isPersonalHeatmap ? 'Your ratings heat map' : 'Global ratings heat map'}</h2>
+          <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+            {isPersonalHeatmap
+              ? 'A heat map built only from verses you have rated.'
+              : 'Community verse ratings with chapter and book heat calculated automatically.'}
+          </p>
         </div>
         <label className="relative block w-full md:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-amber-600 dark:text-amber-300" size={17} />
@@ -566,7 +607,7 @@ export function BibleBrowser({
       )}
       {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-950/40 dark:text-emerald-100">{message}</div>}
 
-      <div className="app-card space-y-3 p-4">
+      {!isPersonalHeatmap && <div className="app-card space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="inline-flex items-center gap-2 text-sm font-extrabold text-slate-900 dark:text-amber-50">
             <SlidersHorizontal size={16} className="text-purple-700 dark:text-purple-300" aria-hidden="true" />
@@ -609,16 +650,16 @@ export function BibleBrowser({
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
-      {!selectedBook && selectedStruggles.length === 0 && (
+      {!selectedBook && (isPersonalHeatmap || selectedStruggles.length === 0) && (
         <HeatGrid
           items={bookItems}
           onSelect={(item) => selectBook(item.book)}
         />
       )}
 
-      {!selectedBook && selectedStruggles.length > 0 && (
+      {!isPersonalHeatmap && !selectedBook && selectedStruggles.length > 0 && (
         <div className="space-y-3">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -692,14 +733,20 @@ export function BibleBrowser({
                     return (
                       <div key={item.key} className="app-card p-3 transition hover:-translate-y-px hover:shadow-md hover:shadow-amber-950/10">
                         <div className="mb-2 text-sm font-bold text-slate-900 dark:text-amber-50">{item.title}</div>
-                        <div className="mb-2 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{item.ratingCount ? `${item.averageRating} avg, ${item.ratingCount} ratings` : `${item.averageRating} baseline`}</div>
-                        <div className={`mb-2 rounded-full px-2 py-1 text-xs font-extrabold ${
-                          item.completion.complete
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-100'
-                            : 'bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400'
-                        }`}>
-                          {item.completion.complete ? 'Personal: rated' : 'Personal: open'}
+                        <div className="mb-2 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                          {isPersonalHeatmap
+                            ? (item.myRating ? `Your rating: ${item.myRating.score}/10` : 'Not rated by you')
+                            : (item.ratingCount ? `${item.averageRating} avg, ${item.ratingCount} ratings` : `${item.averageRating} baseline`)}
                         </div>
+                        {!isPersonalHeatmap && (
+                          <div className={`mb-2 rounded-full px-2 py-1 text-xs font-extrabold ${
+                            item.completion.complete
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-100'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400'
+                          }`}>
+                            {item.completion.complete ? 'Personal: rated' : 'Personal: open'}
+                          </div>
+                        )}
                         <RatingControl
                           disabled={!user}
                           onClear={item.myRating ? () => cancelRating(item) : undefined}
