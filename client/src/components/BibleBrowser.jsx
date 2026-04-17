@@ -384,6 +384,7 @@ export function BibleBrowser({
       loadChapterRatings(selectedBook),
       loadVerseRatings(selectedBook, selectedChapter),
       loadMyRatings(),
+      onRatingSaved?.() || Promise.resolve(),
     ]);
     setMessage('Rating removed');
   }

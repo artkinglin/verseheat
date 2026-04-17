@@ -237,7 +237,10 @@ export default function App() {
       await api(`/api/ratings/verse/${rating.bookId}/${rating.chapter}/${rating.verse}`, {
         method: 'DELETE',
       });
-      await refreshInsights();
+      await Promise.all([
+        refreshInsights(),
+        refreshCompletion(),
+      ]);
     } catch (error) {
       setInsightsError(error.message);
     }
