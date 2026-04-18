@@ -11,6 +11,10 @@ function anchorRange(bookId, chapter, startVerse, endVerse, score) {
   ]);
 }
 
+function bufferBaselineScore(score) {
+  return Math.max(6, Math.min(10, Math.round(6 + ((score - 1) * 4) / 9)));
+}
+
 const anchorEntries = [
   [key(43, 3, 16), 10],
   ...anchorRange(40, 22, 37, 39, 10),
@@ -241,9 +245,11 @@ export function getBaselineVerseRating(bookId, chapter, verse) {
   const normalizedVerse = Number(verse);
   const referenceKey = key(normalizedBookId, normalizedChapter, normalizedVerse);
 
-  return anchorRatings.get(referenceKey)
+  const rawScore = anchorRatings.get(referenceKey)
     ?? notableRatings.get(referenceKey)
     ?? baselineFormula(normalizedBookId, normalizedChapter, normalizedVerse);
+
+  return bufferBaselineScore(rawScore);
 }
 
 export function getBaselineChapterRating(bookId, chapter) {
