@@ -35,6 +35,12 @@ Run the database schema:
 psql "$DATABASE_URL" -f server/db/schema.sql
 ```
 
+Seed the computed baseline verse ratings as real community ratings:
+
+```bash
+npm run seed:baseline-ratings
+```
+
 ## Environment
 
 Server:
