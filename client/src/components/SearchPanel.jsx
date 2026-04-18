@@ -1,8 +1,8 @@
-import { BookOpenText, Search, UserRound } from 'lucide-react';
+import { BookOpenText, ExternalLink, Search, UserRound } from 'lucide-react';
 import React, { useState } from 'react';
 import { api } from '../api.js';
 
-export function SearchPanel({ onNavigate, user }) {
+export function SearchPanel({ onNavigate, onOpenReference, user }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [status, setStatus] = useState('');
@@ -17,6 +17,17 @@ export function SearchPanel({ onNavigate, user }) {
       setStatus(`${data.total_results || 0} results`);
     } catch (error) {
       setResults([]);
+      setStatus(error.message);
+    }
+  }
+
+  async function openReference(reference) {
+    setStatus('Opening passage...');
+    try {
+      const data = await api(`/api/bible/resolve?q=${encodeURIComponent(reference)}`);
+      onOpenReference?.(data.reference);
+      setStatus('Passage opened');
+    } catch (error) {
       setStatus(error.message);
     }
   }
@@ -63,6 +74,15 @@ export function SearchPanel({ onNavigate, user }) {
                     <UserRound size={16} aria-hidden="true" />
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => openReference(result.reference)}
+                  className="rounded-lg p-2 text-emerald-700 transition hover:-translate-y-px hover:bg-emerald-50 dark:text-emerald-200 dark:hover:bg-emerald-950/50"
+                  aria-label={`Open ${result.reference} in heat map`}
+                  title="Open in heat map"
+                >
+                  <ExternalLink size={16} aria-hidden="true" />
+                </button>
               </div>
               <p className="mt-1 leading-6 text-slate-600 dark:text-slate-300">{result.content}</p>
             </article>

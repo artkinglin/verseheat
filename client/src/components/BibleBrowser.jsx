@@ -104,6 +104,7 @@ export function BibleBrowser({
   collections = [],
   focusStruggle = '',
   heatmapMode = 'global',
+  jumpTarget = null,
   onAddToCollection,
   onAuthRequired,
   onCreateCollection,
@@ -127,6 +128,14 @@ export function BibleBrowser({
   const [selectedStruggles, setSelectedStruggles] = useState([]);
   const [struggleVerses, setStruggleVerses] = useState([]);
   const [struggleLoading, setStruggleLoading] = useState(false);
+  const [filters, setFilters] = useState({
+    openOnly: false,
+    favoritesOnly: false,
+    strongCommunity: false,
+    lowConfidence: false,
+  });
+  const [activeVerse, setActiveVerse] = useState(null);
+  const [noteDraft, setNoteDraft] = useState('');
 
   const loadBookRatings = useCallback(async () => {
     const data = await api('/api/ratings/aggregates?scope=book');
@@ -216,6 +225,50 @@ export function BibleBrowser({
       current.length === 1 && current[0] === focusStruggle ? current : [focusStruggle]
     ));
   }, [focusStruggle]);
+
+  useEffect(() => {
+    if (!jumpTarget || books.length === 0) return;
+
+    const bookSummary = books.find((book) => book.id === jumpTarget.bookId);
+    if (!bookSummary) return;
+
+    let ignore = false;
+
+    async function openTarget() {
+      setMessage('');
+      setLoadError('');
+      setSelectedStruggles([]);
+      setBookLoading(true);
+
+      try {
+        const data = await api(`/api/bible/books/${bookSummary.id}`);
+        if (ignore) return;
+        const chapter = data.book.chapters.find((entry) => entry.chapter === jumpTarget.chapter);
+        if (!chapter) throw new Error('Chapter not found');
+        setSelectedBook(data.book);
+        setSelectedChapter(chapter);
+        await Promise.all([
+          loadChapterRatings(data.book),
+          loadVerseRatings(data.book, chapter),
+          loadMyRatings(),
+        ]);
+      } catch (error) {
+        if (!ignore) {
+          setLoadError(`Reference is unavailable: ${error.message}`);
+        }
+      } finally {
+        if (!ignore) {
+          setBookLoading(false);
+        }
+      }
+    }
+
+    openTarget();
+
+    return () => {
+      ignore = true;
+    };
+  }, [books, jumpTarget, loadChapterRatings, loadMyRatings, loadVerseRatings]);
 
   useEffect(() => {
     if (!selectedBook || !selectedChapter) {
@@ -367,6 +420,14 @@ export function BibleBrowser({
     };
   }) : [];
 
+  const filteredVerseItems = verseItems.filter((item) => {
+    if (filters.openOnly && item.myRating) return false;
+    if (filters.favoritesOnly && !item.myRating?.favorite) return false;
+    if (filters.strongCommunity && Number(item.averageRating || 0) < 8) return false;
+    if (filters.lowConfidence && Number(item.ratingCount || 0) > 2) return false;
+    return true;
+  });
+
   const struggleItems = struggleVerses.map((item) => ({
     key: `${item.bookId}:${item.chapter}:${item.verse}`,
     title: `${item.bookName} ${item.chapter}:${item.verse}`,
@@ -462,6 +523,26 @@ export function BibleBrowser({
     await loadMyRatings();
     await onRatingSaved?.();
     setMessage(favorite ? 'Favorite saved' : 'Favorite removed');
+  }
+
+  async function saveNote(item) {
+    if (!user) {
+      onAuthRequired();
+      return;
+    }
+
+    setMessage('');
+    try {
+      await api(`/api/ratings/verse/${selectedBook.id}/${selectedChapter.chapter}/${item.verse}/note`, {
+        method: 'PATCH',
+        body: JSON.stringify({ note: noteDraft }),
+      });
+      await loadMyRatings();
+      setActiveVerse(null);
+      setMessage('Note saved');
+    } catch (error) {
+      setMessage(error.message);
+    }
   }
 
   async function createQuickCollection() {
@@ -574,6 +655,98 @@ export function BibleBrowser({
     }
   }
 
+  function openVerseDetail(item) {
+    setActiveVerse(item);
+    setNoteDraft(item.myRating?.note || '');
+  }
+
+  function renderVerseCard(item, expanded = false) {
+    const key = favoriteKey('verse', selectedChapter.chapter, item.verse);
+    const isFavorite = favoriteDrafts[key] ?? item.myRating?.favorite ?? false;
+    const reference = {
+      bookId: selectedBook.id,
+      bookName: selectedBook.name,
+      chapter: selectedChapter.chapter,
+      verse: item.verse,
+    };
+
+    return (
+      <div key={item.key} className={`app-card p-3 transition hover:-translate-y-px hover:shadow-md hover:shadow-amber-950/10 ${jumpTarget?.verse === item.verse ? 'ring-2 ring-amber-400' : ''}`}>
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <div className="text-sm font-bold text-slate-900 dark:text-amber-50">{item.title}</div>
+          {!expanded && (
+            <button type="button" className="rounded-lg px-2 py-1 text-xs font-extrabold text-purple-700 hover:bg-purple-50 dark:text-purple-200 dark:hover:bg-purple-950/40" onClick={() => openVerseDetail(item)}>
+              Open
+            </button>
+          )}
+        </div>
+        <div className="mb-2 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+          {isPersonalHeatmap
+            ? (item.myRating ? `Your rating: ${item.myRating.score}/10` : 'Not rated by you')
+            : (item.ratingCount ? `${item.averageRating} avg, ${item.ratingCount} ratings` : `${item.averageRating} baseline`)}
+        </div>
+        {!isPersonalHeatmap && (
+          <div className={`mb-2 rounded-full px-2 py-1 text-xs font-extrabold ${
+            item.completion.complete
+              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-100'
+              : 'bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400'
+          }`}>
+            {item.completion.complete ? 'Personal: rated' : 'Personal: open'}
+          </div>
+        )}
+        {item.myRating?.note && !expanded && (
+          <p className="mb-2 line-clamp-2 rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-slate-600 dark:bg-indigo-950/30 dark:text-slate-300">{item.myRating.note}</p>
+        )}
+        <RatingControl
+          disabled={!user}
+          onClear={item.myRating ? () => cancelRating(item) : undefined}
+          selectedScore={item.myRating?.score}
+          onRate={(score) => rate({
+            scope: 'verse',
+            bookId: selectedBook.id,
+            chapter: selectedChapter.chapter,
+            verse: item.verse,
+            score,
+            favorite: isFavorite,
+            note: item.myRating?.note || null,
+          })}
+        />
+        <label className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-purple-700 dark:text-purple-200">
+          <input
+            type="checkbox"
+            className="h-3 w-3 accent-purple-700"
+            checked={Boolean(isFavorite)}
+            onChange={(event) => saveFavorite(item, event.target.checked)}
+          />
+          <Heart size={13} aria-hidden="true" />
+          Favorite
+        </label>
+        <VerseCollectionControls
+          collections={collections}
+          disabled={!user}
+          onAdd={addToCollection}
+          onRemove={removeFromCollection}
+          reference={reference}
+        />
+        {expanded && (
+          <div className="mt-3 space-y-2">
+            <label className="block text-xs font-extrabold uppercase text-slate-500 dark:text-slate-400">
+              Private note
+              <textarea
+                className="app-input mt-1 min-h-28 w-full px-3 py-2 text-sm normal-case"
+                disabled={!user || !item.myRating}
+                placeholder={item.myRating ? 'Add a reflection or study note' : 'Rate this verse before adding a note'}
+                value={noteDraft}
+                onChange={(event) => setNoteDraft(event.target.value)}
+              />
+            </label>
+            <button type="button" className="btn-primary" disabled={!user || !item.myRating} onClick={() => saveNote(item)}>Save note</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -606,6 +779,45 @@ export function BibleBrowser({
         </div>
       )}
       {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-950/40 dark:text-emerald-100">{message}</div>}
+
+      <div className="app-card grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+        <div className="grid gap-2 sm:grid-cols-4">
+          {[
+            ['#ef4444', 'Low heat'],
+            ['#f59e0b', 'Mixed'],
+            ['#22c55e', 'High heat'],
+            ['#e5e7eb', 'Baseline/open'],
+          ].map(([color, label]) => (
+            <div key={label} className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+              <span className="h-4 w-4 rounded border border-slate-200" style={{ backgroundColor: color }} />
+              {label}
+            </div>
+          ))}
+        </div>
+        {selectedChapter && (
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              ['openOnly', 'Unrated by me'],
+              ['favoritesOnly', 'Favorites'],
+              ['strongCommunity', '8+ community'],
+              ['lowConfidence', 'Few ratings'],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilters((current) => ({ ...current, [key]: !current[key] }))}
+                className={`rounded-lg border px-2.5 py-1.5 text-xs font-bold transition ${
+                  filters[key]
+                    ? 'border-purple-700 bg-purple-700 text-white dark:border-amber-300 dark:bg-amber-300 dark:text-slate-950'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-amber-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {!isPersonalHeatmap && <div className="app-card space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -719,70 +931,22 @@ export function BibleBrowser({
                 Verses
               </h4>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
-                {verseItems.map((item) => (
-                  (() => {
-                    const key = favoriteKey('verse', selectedChapter.chapter, item.verse);
-                    const isFavorite = favoriteDrafts[key] ?? item.myRating?.favorite ?? false;
-                    const reference = {
-                      bookId: selectedBook.id,
-                      bookName: selectedBook.name,
-                      chapter: selectedChapter.chapter,
-                      verse: item.verse,
-                    };
-
-                    return (
-                      <div key={item.key} className="app-card p-3 transition hover:-translate-y-px hover:shadow-md hover:shadow-amber-950/10">
-                        <div className="mb-2 text-sm font-bold text-slate-900 dark:text-amber-50">{item.title}</div>
-                        <div className="mb-2 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
-                          {isPersonalHeatmap
-                            ? (item.myRating ? `Your rating: ${item.myRating.score}/10` : 'Not rated by you')
-                            : (item.ratingCount ? `${item.averageRating} avg, ${item.ratingCount} ratings` : `${item.averageRating} baseline`)}
-                        </div>
-                        {!isPersonalHeatmap && (
-                          <div className={`mb-2 rounded-full px-2 py-1 text-xs font-extrabold ${
-                            item.completion.complete
-                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-100'
-                              : 'bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400'
-                          }`}>
-                            {item.completion.complete ? 'Personal: rated' : 'Personal: open'}
-                          </div>
-                        )}
-                        <RatingControl
-                          disabled={!user}
-                          onClear={item.myRating ? () => cancelRating(item) : undefined}
-                          selectedScore={item.myRating?.score}
-                          onRate={(score) => rate({
-                            scope: 'verse',
-                            bookId: selectedBook.id,
-                            chapter: selectedChapter.chapter,
-                            verse: item.verse,
-                            score,
-                            favorite: isFavorite,
-                          })}
-                        />
-                        <label className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-purple-700 dark:text-purple-200">
-                          <input
-                            type="checkbox"
-                            className="h-3 w-3 accent-purple-700"
-                            checked={Boolean(isFavorite)}
-                            onChange={(event) => saveFavorite(item, event.target.checked)}
-                          />
-                          <Heart size={13} aria-hidden="true" />
-                          Favorite
-                        </label>
-                        <VerseCollectionControls
-                          collections={collections}
-                          disabled={!user}
-                          onAdd={addToCollection}
-                          onRemove={removeFromCollection}
-                          reference={reference}
-                        />
-                      </div>
-                    );
-                  })()
-                ))}
+                {filteredVerseItems.map((item) => renderVerseCard(item))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {activeVerse && (
+        <div className="fixed inset-0 z-40 flex items-end bg-slate-950/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+          <div className="mx-auto max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg bg-white p-4 shadow-xl dark:bg-slate-950 sm:rounded-lg">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="section-heading text-xl font-extrabold">{selectedBook.name} {selectedChapter.chapter}:{activeVerse.verse}</h3>
+              <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900" onClick={() => setActiveVerse(null)} aria-label="Close verse detail">
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+            {renderVerseCard(activeVerse, true)}
           </div>
         </div>
       )}

@@ -42,6 +42,10 @@ export async function api(path, options = {}) {
   return data;
 }
 
+export function apiUrl(path) {
+  return `${API_BASE_URL}${path}`;
+}
+
 export function getToken() {
   return localStorage.getItem('verseHeatToken');
 }
