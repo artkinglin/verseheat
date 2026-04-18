@@ -5,7 +5,12 @@ export function Header({ user, onAuthOpen, onLogout, onNavigate, darkMode, onDar
   return (
     <header className="sticky top-0 z-20 border-b border-amber-200/70 bg-white/85 shadow-sm shadow-amber-950/5 backdrop-blur dark:border-indigo-400/20 dark:bg-slate-950/85 dark:shadow-black/20">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onNavigate?.('/')}
+          className="flex items-center gap-3 rounded-lg text-left transition hover:-translate-y-px focus:outline-none focus:ring-2 focus:ring-amber-300 dark:focus:ring-amber-200/40"
+          aria-label="Go to Verse Heat home"
+        >
           <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 via-orange-500 to-purple-700 text-white shadow-md shadow-amber-900/25">
             <Flame size={22} aria-hidden="true" />
           </div>
@@ -13,7 +18,7 @@ export function Header({ user, onAuthOpen, onLogout, onNavigate, darkMode, onDar
             <h1 className="text-lg font-bold leading-tight text-slate-950 dark:text-amber-50">Verse Heat</h1>
             <p className="hidden text-xs font-medium text-emerald-700 dark:text-emerald-300 sm:block">Rate Scripture. See the heat.</p>
           </div>
-        </div>
+        </button>
 
         <div className="flex items-center gap-2">
           <button
