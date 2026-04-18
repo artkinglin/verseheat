@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, FolderPlus, Heart, Library, Share2, Trash2, TrendingUp, UserRoundCheck, X } from 'lucide-react';
-import { api } from '../api.js';
+import { BarChart3, Download, FolderPlus, Heart, Library, Lock, Share2, Trash2, TrendingUp, Unlock, UserRoundCheck, X } from 'lucide-react';
+import { api, apiUrl, getToken } from '../api.js';
 import { referenceLabel } from '../lib/heat.js';
 
 function RankingList({ icon: Icon, title, items, emptyLabel, onNavigate }) {
@@ -91,6 +91,7 @@ function CollectionManager({
   collections,
   onCreateCollection,
   onDeleteCollection,
+  onUpdateCollection,
   onRemoveFromCollection,
 }) {
   const safeCollections = useMemo(() => (Array.isArray(collections) ? collections : []), [collections]);
@@ -98,6 +99,8 @@ function CollectionManager({
   const [selectedCollectionId, setSelectedCollectionId] = useState('');
   const [detail, setDetail] = useState(null);
   const [status, setStatus] = useState('');
+  const [isPublic, setIsPublic] = useState(true);
+  const [importText, setImportText] = useState('');
 
   useEffect(() => {
     if (safeCollections.length === 0) {
@@ -142,7 +145,7 @@ function CollectionManager({
     if (!name.trim()) return;
 
     try {
-      const collection = await onCreateCollection(name.trim());
+      const collection = await onCreateCollection(name.trim(), isPublic);
       setName('');
       setSelectedCollectionId(collection.id);
       setStatus('Collection created');
@@ -159,6 +162,82 @@ function CollectionManager({
       setStatus('Collection deleted');
     } catch (error) {
       setStatus(error.message);
+    }
+  }
+
+  async function togglePrivacy(collection) {
+    try {
+      const updated = await onUpdateCollection(collection.id, { isPublic: !collection.isPublic });
+      setDetail((value) => value ? { ...value, isPublic: updated.isPublic } : value);
+      setStatus(updated.isPublic ? 'Collection is public' : 'Collection is private');
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function exportSelected(format) {
+    if (!selectedCollectionId) return;
+
+    try {
+      const token = getToken();
+      const response = await fetch(apiUrl(`/api/collections/${selectedCollectionId}/export?format=${format}`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('Export failed');
+      const text = await response.text();
+      const blob = new window.Blob([text], { type: response.headers.get('content-type') || 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${detail?.name || 'collection'}.${format}`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      setStatus(`Exported ${format.toUpperCase()}`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function shareSelected() {
+    if (!selectedCollectionId || !detail) return;
+    if (!detail.isPublic) {
+      setStatus('Make this collection public before sharing');
+      return;
+    }
+
+    const url = `${window.location.origin}/collections/${selectedCollectionId}`;
+    if (navigator.share) {
+      await navigator.share({ title: detail.name, url });
+    } else {
+      await navigator.clipboard.writeText(url);
+      setStatus('Share link copied');
+    }
+  }
+
+  async function importReferences() {
+    if (!selectedCollectionId || !importText.trim()) return;
+
+    const lines = importText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).slice(0, 50);
+    let added = 0;
+    try {
+      for (const line of lines) {
+        const resolved = await api(`/api/bible/resolve?q=${encodeURIComponent(line)}`);
+        await api(`/api/collections/${selectedCollectionId}/verses`, {
+          method: 'POST',
+          body: JSON.stringify({
+            bookId: resolved.reference.bookId,
+            chapter: resolved.reference.chapter,
+            verse: resolved.reference.verse,
+          }),
+        });
+        added += 1;
+      }
+      const data = await api(`/api/collections/${selectedCollectionId}`);
+      setDetail(data.collection);
+      setImportText('');
+      setStatus(`Imported ${added} references`);
+    } catch (error) {
+      setStatus(`Imported ${added} before stopping: ${error.message}`);
     }
   }
 
@@ -189,6 +268,10 @@ function CollectionManager({
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
+          <label className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white/80 px-3 py-2 text-xs font-bold text-slate-600 dark:border-indigo-400/30 dark:bg-slate-950/60 dark:text-slate-300">
+            <input type="checkbox" className="accent-purple-700" checked={isPublic} onChange={(event) => setIsPublic(event.target.checked)} />
+            Public
+          </label>
           <button type="submit" className="btn-primary">
             <FolderPlus size={16} aria-hidden="true" />
             Create Collection
@@ -215,7 +298,7 @@ function CollectionManager({
                 }`}
               >
                 <span className="block text-sm font-bold">{collection.name}</span>
-                <span className="text-xs font-semibold opacity-80">{collection.verseCount} verses</span>
+                <span className="text-xs font-semibold opacity-80">{collection.verseCount} verses - {collection.isPublic ? 'Public' : 'Private'}</span>
               </button>
             ))}
           </div>
@@ -229,6 +312,33 @@ function CollectionManager({
               <button type="button" onClick={deleteSelected} className="rounded-lg p-2 text-red-700 transition hover:-translate-y-px hover:bg-red-50 dark:text-red-200 dark:hover:bg-red-950/50" aria-label="Delete collection" title="Delete collection">
                 <Trash2 size={16} aria-hidden="true" />
               </button>
+            </div>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {detail && (
+                <button type="button" className="btn-soft px-2 py-1 text-xs" onClick={() => togglePrivacy(detail)}>
+                  {detail.isPublic ? <Lock size={14} aria-hidden="true" /> : <Unlock size={14} aria-hidden="true" />}
+                  {detail.isPublic ? 'Make Private' : 'Make Public'}
+                </button>
+              )}
+              <button type="button" className="btn-soft px-2 py-1 text-xs" onClick={shareSelected}>
+                <Share2 size={14} aria-hidden="true" />
+                Share
+              </button>
+              {['txt', 'md', 'csv'].map((format) => (
+                <button key={format} type="button" className="btn-soft px-2 py-1 text-xs" onClick={() => exportSelected(format)}>
+                  <Download size={14} aria-hidden="true" />
+                  {format.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <textarea
+                className="app-input min-h-20 px-3 py-2 text-sm"
+                placeholder="Import references, one per line"
+                value={importText}
+                onChange={(event) => setImportText(event.target.value)}
+              />
+              <button type="button" className="btn-primary self-start" onClick={importReferences}>Import</button>
             </div>
 
             <div className="space-y-2">
@@ -274,6 +384,7 @@ export function InsightPanels({
   onDeleteCollection,
   onNavigate,
   onRemoveFromCollection,
+  onUpdateCollection,
 }) {
   const safeRatings = Array.isArray(myRatings) ? myRatings : [];
   const favorites = safeRatings.filter((rating) => rating.favorite);
@@ -320,6 +431,7 @@ export function InsightPanels({
         collections={collections}
         onCreateCollection={onCreateCollection}
         onDeleteCollection={onDeleteCollection}
+        onUpdateCollection={onUpdateCollection}
         onRemoveFromCollection={onRemoveFromCollection}
       />
     </div>

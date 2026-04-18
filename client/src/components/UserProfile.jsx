@@ -319,10 +319,15 @@ function CollectionGrid({ collections, onCollectionSelect }) {
               onClick={() => onCollectionSelect(collection.id)}
               className="btn-soft px-2 py-1 text-xs"
             >
-              Go to Collection
+              Preview
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5">
+            {collection.isPublic && (
+              <a href={`/collections/${collection.id}`} className="rounded-lg bg-purple-50 px-2 py-1 text-xs font-bold text-purple-800 dark:bg-purple-950/40 dark:text-purple-100">
+                Public page
+              </a>
+            )}
             {collection.versePreviews?.length > 0 ? collection.versePreviews.map((verse) => (
               <span key={`${collection.id}-${verse.bookId}-${verse.chapter}-${verse.verse}`} className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
                 {referenceLabel(verse)}
