@@ -22,6 +22,11 @@ const profileUpdateSchema = z.object({
   bio: z.string().trim().max(180).nullable().optional(),
   profilePicture: z.string().trim().url().max(500).nullable().or(z.literal('')).optional(),
 });
+const reminderSchema = z.object({
+  enabled: z.boolean(),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  timezone: z.string().trim().min(1).max(80).default('local'),
+});
 
 const ratingScores = Array.from({ length: 10 }, (_, index) => index + 1);
 const ratingMilestones = [10, 25, 50, 100, 250, 500, 1000];
@@ -34,6 +39,11 @@ function publicUser(row) {
     bio: row.bio,
     profilePicture: row.profile_picture,
     createdAt: row.created_at,
+    reminder: Object.hasOwn(row, 'reminder_enabled') ? {
+      enabled: Boolean(row.reminder_enabled),
+      time: row.reminder_time,
+      timezone: row.reminder_timezone,
+    } : undefined,
   };
 }
 
@@ -140,10 +150,11 @@ async function getFavoriteStruggles(userId) {
   return result.rows;
 }
 
-async function getCollections(userId) {
+async function getCollections(userId, viewerId) {
   const result = await query(
     `select c.id,
             c.name,
+            c.is_public as "isPublic",
             c.created_at as "createdAt",
             c.updated_at as "updatedAt",
             count(cv.id)::int as "verseCount",
@@ -162,9 +173,10 @@ async function getCollections(userId) {
      from collections c
      left join collection_verses cv on cv.collection_id = c.id
      where c.user_id = $1
+       and (c.is_public = true or c.user_id = $2)
      group by c.id
      order by c.updated_at desc, c.created_at desc`,
-    [userId],
+    [userId, viewerId || null],
   );
 
   return result.rows.map((collection) => ({
@@ -309,7 +321,7 @@ async function getProfilePayload(userId, viewerId) {
   const [stats, topRatedVerses, collections, favoriteStruggles, follow] = await Promise.all([
     getStats(userId),
     getTopRatedVerses(userId),
-    getCollections(userId),
+    getCollections(userId, viewerId),
     getFavoriteStruggles(userId),
     getFollowSummary(userId, viewerId),
   ]);
@@ -367,6 +379,60 @@ router.patch('/me/profile', requireAuth, async (req, res, next) => {
     if (error.code === '23505') {
       return res.status(409).json({ error: 'Username is already taken' });
     }
+    return next(error);
+  }
+});
+
+router.get('/me/reminders', requireAuth, async (req, res, next) => {
+  try {
+    const result = await query(
+      `select reminder_enabled, reminder_time, reminder_timezone
+       from users
+       where id = $1`,
+      [req.user.sub],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({
+      reminder: {
+        enabled: Boolean(result.rows[0].reminder_enabled),
+        time: result.rows[0].reminder_time,
+        timezone: result.rows[0].reminder_timezone,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch('/me/reminders', requireAuth, async (req, res, next) => {
+  try {
+    const input = reminderSchema.parse(req.body);
+    const result = await query(
+      `update users
+       set reminder_enabled = $2,
+           reminder_time = $3,
+           reminder_timezone = $4
+       where id = $1
+       returning reminder_enabled, reminder_time, reminder_timezone`,
+      [req.user.sub, input.enabled, input.time, input.timezone],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({
+      reminder: {
+        enabled: Boolean(result.rows[0].reminder_enabled),
+        time: result.rows[0].reminder_time,
+        timezone: result.rows[0].reminder_timezone,
+      },
+    });
+  } catch (error) {
     return next(error);
   }
 });
@@ -585,7 +651,7 @@ router.get('/:userId/ratings', async (req, res, next) => {
   }
 });
 
-router.get('/:userId/collections', async (req, res, next) => {
+router.get('/:userId/collections', optionalAuth, async (req, res, next) => {
   try {
     const userId = userIdSchema.parse(req.params.userId);
     const user = await getUser(userId);
@@ -594,7 +660,7 @@ router.get('/:userId/collections', async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    return res.json({ collections: await getCollections(userId) });
+    return res.json({ collections: await getCollections(userId, req.user?.sub) });
   } catch (error) {
     return next(error);
   }

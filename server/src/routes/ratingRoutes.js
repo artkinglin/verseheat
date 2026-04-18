@@ -15,6 +15,7 @@ const ratingSchema = z.object({
   verse: z.number().int().min(1),
   score: z.number().int().min(1).max(10),
   favorite: z.boolean().optional(),
+  note: z.string().trim().max(2000).nullable().optional(),
 });
 
 const aggregateSchema = z.object({
@@ -26,6 +27,10 @@ const aggregateSchema = z.object({
 const strugglesSchema = z.object({
   struggle: z.union([z.string(), z.array(z.string())]).optional(),
   struggles: z.string().optional(),
+});
+
+const noteSchema = z.object({
+  note: z.string().trim().max(2000).nullable().optional(),
 });
 
 function validateReference(input) {
@@ -375,6 +380,94 @@ router.get('/verse/:bookId/:chapterNum/:verseNum', async (req, res, next) => {
   }
 });
 
+router.get('/recommendations', requireAuth, async (req, res, next) => {
+  try {
+    const result = await query(
+      `with my_ratings as (
+         select book_id, chapter, verse
+         from verse_ratings
+         where user_id = $1
+       ),
+       focus_struggles as (
+         select vs.struggle, count(*) as count
+         from verse_ratings vr
+         join verse_struggles vs
+           on vs.book_id = vr.book_id
+          and vs.chapter = vr.chapter
+          and vs.verse = vr.verse
+         where vr.user_id = $1
+         group by vs.struggle
+         order by count(*) desc
+         limit 3
+       ),
+       candidates as (
+         select 'focus' as reason,
+                vs.book_id,
+                max(vs.book_name) as book_name,
+                vs.chapter,
+                vs.verse,
+                array_agg(distinct vs.struggle order by vs.struggle) as tags,
+                count(vr.score)::int as rating_count,
+                round(avg(vr.score)::numeric, 2)::float as average_rating,
+                max(vr.updated_at) as last_rated_at
+         from verse_struggles vs
+         join focus_struggles fs on fs.struggle = vs.struggle
+         left join verse_ratings vr
+           on vr.book_id = vs.book_id
+          and vr.chapter = vs.chapter
+          and vr.verse = vs.verse
+         where not exists (
+           select 1 from my_ratings mr
+           where mr.book_id = vs.book_id
+             and mr.chapter = vs.chapter
+             and mr.verse = vs.verse
+         )
+         group by vs.book_id, vs.chapter, vs.verse
+         union all
+         select 'community' as reason,
+                vr.book_id,
+                max(vr.book_name) as book_name,
+                vr.chapter,
+                vr.verse,
+                array[]::text[] as tags,
+                count(vr.score)::int as rating_count,
+                round(avg(vr.score)::numeric, 2)::float as average_rating,
+                max(vr.updated_at) as last_rated_at
+         from verse_ratings vr
+         where not exists (
+           select 1 from my_ratings mr
+           where mr.book_id = vr.book_id
+             and mr.chapter = vr.chapter
+             and mr.verse = vr.verse
+         )
+         group by vr.book_id, vr.chapter, vr.verse
+       )
+       select book_id as "bookId",
+              book_name as "bookName",
+              chapter,
+              verse,
+              max(reason) as reason,
+              max(rating_count)::int as "ratingCount",
+              max(average_rating)::float as "averageRating",
+              max(last_rated_at) as "lastRatedAt",
+              coalesce(array_agg(distinct tag) filter (where tag is not null), array[]::text[]) as tags
+       from candidates
+       left join lateral unnest(tags) tag on true
+       group by book_id, book_name, chapter, verse
+       order by max(case when reason = 'focus' then 1 else 0 end) desc,
+                max(average_rating) desc nulls last,
+                max(rating_count) desc,
+                max(last_rated_at) desc nulls last
+       limit 12`,
+      [req.user.sub],
+    );
+
+    return res.json({ recommendations: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.post('/', requireAuth, async (req, res, next) => {
   try {
     const input = ratingSchema.parse(req.body);
@@ -388,17 +481,20 @@ router.post('/', requireAuth, async (req, res, next) => {
     const result = await query(
       `with updated as (
          update verse_ratings
-         set score = $6, favorite = $7, updated_at = now()
+         set score = $6,
+             favorite = $7,
+             note = case when $9::boolean then $8 else note end,
+             updated_at = now()
          where user_id = $1
            and book_id = $2
            and chapter = $4
            and verse = $5
-         returning id, 'verse' as scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, updated_at as "updatedAt"
+         returning id, 'verse' as scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, note, updated_at as "updatedAt"
        ), inserted as (
-         insert into verse_ratings (user_id, book_id, book_name, chapter, verse, score, favorite)
-         select $1, $2, $3, $4, $5, $6, $7
+         insert into verse_ratings (user_id, book_id, book_name, chapter, verse, score, favorite, note)
+         select $1, $2, $3, $4, $5, $6, $7, $8
          where not exists (select 1 from updated)
-         returning id, 'verse' as scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, updated_at as "updatedAt"
+         returning id, 'verse' as scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, note, updated_at as "updatedAt"
        )
        select * from updated
        union all
@@ -411,10 +507,47 @@ router.post('/', requireAuth, async (req, res, next) => {
         input.verse,
         input.score,
         input.favorite || false,
+        input.note ?? null,
+        Object.hasOwn(input, 'note'),
       ],
     );
 
     return res.status(201).json({ rating: result.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch('/verse/:bookId/:chapterNum/:verseNum/note', requireAuth, async (req, res, next) => {
+  try {
+    const input = {
+      bookId: z.coerce.number().int().min(1).max(66).parse(req.params.bookId),
+      chapter: z.coerce.number().int().min(1).parse(req.params.chapterNum),
+      verse: z.coerce.number().int().min(1).parse(req.params.verseNum),
+      ...noteSchema.parse(req.body),
+    };
+    const error = validateReference(input);
+
+    if (error) {
+      return res.status(400).json({ error });
+    }
+
+    const result = await query(
+      `update verse_ratings
+       set note = $5, updated_at = now()
+       where user_id = $1
+         and book_id = $2
+         and chapter = $3
+         and verse = $4
+       returning id, 'verse' as scope, book_id as "bookId", book_name as "bookName", chapter, verse, score, favorite, note, updated_at as "updatedAt"`,
+      [req.user.sub, input.bookId, input.chapter, input.verse, input.note || null],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Rate this verse before adding a note' });
+    }
+
+    return res.json({ rating: result.rows[0] });
   } catch (error) {
     return next(error);
   }
@@ -520,7 +653,7 @@ router.get('/mine', requireAuth, async (req, res, next) => {
   try {
     const result = await query(
        `select id, 'verse' as scope, book_id as "bookId", book_name as "bookName", chapter, verse,
-              score, favorite, updated_at as "updatedAt"
+              score, favorite, note, updated_at as "updatedAt"
        from verse_ratings
        where user_id = $1
        order by updated_at desc`,

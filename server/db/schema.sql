@@ -14,6 +14,9 @@ create table if not exists users (
 alter table users add column if not exists username text;
 alter table users add column if not exists bio text;
 alter table users add column if not exists profile_picture text;
+alter table users add column if not exists reminder_enabled boolean not null default false;
+alter table users add column if not exists reminder_time text not null default '08:00';
+alter table users add column if not exists reminder_timezone text not null default 'local';
 
 update users
 set username = 'user-' || substr(replace(id::text, '-', ''), 1, 12)
@@ -47,9 +50,12 @@ create table if not exists verse_ratings (
   verse integer not null,
   score integer not null check (score between 1 and 10),
   favorite boolean not null default false,
+  note text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table verse_ratings add column if not exists note text;
 
 do $$
 begin
@@ -94,9 +100,12 @@ create table if not exists collections (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references users(id) on delete cascade,
   name text not null check (char_length(trim(name)) between 1 and 80),
+  is_public boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table collections add column if not exists is_public boolean not null default true;
 
 create index if not exists collections_user_updated_at_idx
   on collections (user_id, updated_at desc);

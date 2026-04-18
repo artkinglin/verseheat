@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../auth.js';
+import { optionalAuth, requireAuth } from '../auth.js';
 import { getBook, getChapterVerseCount } from '../data/bible.js';
 import { query } from '../db.js';
 
@@ -8,6 +8,12 @@ const router = Router();
 
 const collectionSchema = z.object({
   name: z.string().trim().min(1).max(80),
+  isPublic: z.boolean().optional().default(true),
+});
+
+const collectionUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  isPublic: z.boolean().optional(),
 });
 
 const verseSchema = z.object({
@@ -17,6 +23,9 @@ const verseSchema = z.object({
 });
 
 const collectionIdSchema = z.string().uuid();
+const exportSchema = z.object({
+  format: z.enum(['txt', 'md', 'csv']).default('txt'),
+});
 
 function validateReference(input) {
   const book = getBook(input.bookId);
@@ -30,7 +39,7 @@ function validateReference(input) {
 
 async function assertCollectionOwner(collectionId, userId) {
   const result = await query(
-    `select id, name, user_id, created_at as "createdAt", updated_at as "updatedAt"
+    `select id, name, user_id, is_public as "isPublic", created_at as "createdAt", updated_at as "updatedAt"
      from collections
      where id = $1 and user_id = $2`,
     [collectionId, userId],
@@ -42,6 +51,13 @@ function collectionFromRow(row) {
   return {
     id: row.id,
     name: row.name,
+    isPublic: row.isPublic ?? true,
+    owner: row.ownerUsername ? {
+      id: row.userId,
+      displayName: row.ownerDisplayName,
+      username: row.ownerUsername,
+      profilePicture: row.ownerProfilePicture,
+    } : undefined,
     verseCount: row.verseCount,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -49,13 +65,107 @@ function collectionFromRow(row) {
   };
 }
 
-router.use(requireAuth);
+async function loadCollectionDetail({ collectionId, viewerId, ownerOnly = false, publicOnly = false }) {
+  const collectionResult = await query(
+    `select c.id,
+            c.name,
+            c.user_id as "userId",
+            c.is_public as "isPublic",
+            c.created_at as "createdAt",
+            c.updated_at as "updatedAt",
+            u.display_name as "ownerDisplayName",
+            u.username as "ownerUsername",
+            u.profile_picture as "ownerProfilePicture"
+     from collections c
+     join users u on u.id = c.user_id
+     where c.id = $1
+       and ($2::uuid is null or c.user_id = $2)
+       and ($3::boolean = false or c.is_public = true)`,
+    [collectionId, ownerOnly ? viewerId : null, publicOnly],
+  );
+  const collection = collectionResult.rows[0];
+  if (!collection) return null;
 
-router.get('/', async (req, res, next) => {
+  const verses = await query(
+    `select cv.id,
+            'verse' as scope,
+            cv.book_id as "bookId",
+            cv.book_name as "bookName",
+            cv.chapter,
+            cv.verse,
+            cv.created_at as "createdAt",
+            ur.score as "myScore",
+            ur.favorite as "favorite",
+            ur.note,
+            round(avg(all_ratings.score)::numeric, 2)::float as "averageRating",
+            count(all_ratings.score)::int as "ratingCount"
+     from collection_verses cv
+     left join verse_ratings ur
+       on ur.user_id = $2
+      and ur.book_id = cv.book_id
+      and ur.chapter = cv.chapter
+      and ur.verse = cv.verse
+     left join verse_ratings all_ratings
+       on all_ratings.book_id = cv.book_id
+      and all_ratings.chapter = cv.chapter
+      and all_ratings.verse = cv.verse
+     where cv.collection_id = $1
+     group by cv.id, ur.score, ur.favorite, ur.note
+     order by cv.created_at desc`,
+    [collectionId, viewerId || null],
+  );
+
+  return collectionFromRow({
+    ...collection,
+    verseCount: verses.rows.length,
+    verses: verses.rows,
+  });
+}
+
+function referenceLabel(verse) {
+  return `${verse.bookName} ${verse.chapter}:${verse.verse}`;
+}
+
+function exportCollection(collection, format) {
+  const verses = Array.isArray(collection.verses) ? collection.verses : [];
+
+  if (format === 'csv') {
+    const rows = ['Reference,Your Rating,Community Rating,Note'];
+    verses.forEach((verse) => {
+      rows.push([
+        referenceLabel(verse),
+        verse.myScore || '',
+        verse.averageRating || '',
+        verse.note || '',
+      ].map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(','));
+    });
+    return { contentType: 'text/csv; charset=utf-8', body: rows.join('\n') };
+  }
+
+  if (format === 'md') {
+    const rows = [`# ${collection.name}`, ''];
+    verses.forEach((verse) => {
+      rows.push(`- **${referenceLabel(verse)}**${verse.myScore ? ` - rated ${verse.myScore}/10` : ''}${verse.note ? `\n  ${verse.note}` : ''}`);
+    });
+    return { contentType: 'text/markdown; charset=utf-8', body: rows.join('\n') };
+  }
+
+  return {
+    contentType: 'text/plain; charset=utf-8',
+    body: [
+      collection.name,
+      '',
+      ...verses.map((verse) => `${referenceLabel(verse)}${verse.myScore ? ` - rated ${verse.myScore}/10` : ''}${verse.note ? `\n${verse.note}` : ''}`),
+    ].join('\n'),
+  };
+}
+
+router.get('/', requireAuth, async (req, res, next) => {
   try {
     const result = await query(
       `select c.id,
               c.name,
+              c.is_public as "isPublic",
               c.created_at as "createdAt",
               c.updated_at as "updatedAt",
               count(cv.id)::int as "verseCount",
@@ -85,14 +195,14 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireAuth, async (req, res, next) => {
   try {
     const input = collectionSchema.parse(req.body);
     const result = await query(
-      `insert into collections (user_id, name)
-       values ($1, $2)
-       returning id, name, created_at as "createdAt", updated_at as "updatedAt", 0::int as "verseCount"`,
-      [req.user.sub, input.name],
+      `insert into collections (user_id, name, is_public)
+       values ($1, $2, $3)
+       returning id, name, is_public as "isPublic", created_at as "createdAt", updated_at as "updatedAt", 0::int as "verseCount"`,
+      [req.user.sub, input.name, input.isPublic],
     );
 
     return res.status(201).json({ collection: collectionFromRow(result.rows[0]) });
@@ -104,56 +214,106 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.get('/:collectionId', async (req, res, next) => {
+router.get('/public/:collectionId', optionalAuth, async (req, res, next) => {
   try {
     const collectionId = collectionIdSchema.parse(req.params.collectionId);
-    const collection = await assertCollectionOwner(collectionId, req.user.sub);
+    const collection = await loadCollectionDetail({ collectionId, viewerId: req.user?.sub, publicOnly: true });
 
     if (!collection) {
       return res.status(404).json({ error: 'Collection not found' });
     }
 
-    const verses = await query(
-      `select cv.id,
-              'verse' as scope,
-              cv.book_id as "bookId",
-              cv.book_name as "bookName",
-              cv.chapter,
-              cv.verse,
-              cv.created_at as "createdAt",
-              ur.score as "myScore",
-              ur.favorite as "favorite",
-              round(avg(all_ratings.score)::numeric, 2)::float as "averageRating",
-              count(all_ratings.score)::int as "ratingCount"
-       from collection_verses cv
-       left join verse_ratings ur
-         on ur.user_id = $2
-        and ur.book_id = cv.book_id
-        and ur.chapter = cv.chapter
-        and ur.verse = cv.verse
-       left join verse_ratings all_ratings
-         on all_ratings.book_id = cv.book_id
-        and all_ratings.chapter = cv.chapter
-        and all_ratings.verse = cv.verse
-       where cv.collection_id = $1
-       group by cv.id, ur.score, ur.favorite
-       order by cv.created_at desc`,
-      [collectionId, req.user.sub],
-    );
-
-    return res.json({
-      collection: collectionFromRow({
-        ...collection,
-        verseCount: verses.rows.length,
-        verses: verses.rows,
-      }),
-    });
+    return res.json({ collection });
   } catch (error) {
     return next(error);
   }
 });
 
-router.delete('/:collectionId', async (req, res, next) => {
+router.get('/public/:collectionId/export', optionalAuth, async (req, res, next) => {
+  try {
+    const collectionId = collectionIdSchema.parse(req.params.collectionId);
+    const { format } = exportSchema.parse(req.query);
+    const collection = await loadCollectionDetail({ collectionId, viewerId: req.user?.sub, publicOnly: true });
+
+    if (!collection) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+
+    const output = exportCollection(collection, format);
+    res.setHeader('content-type', output.contentType);
+    return res.send(output.body);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/:collectionId', requireAuth, async (req, res, next) => {
+  try {
+    const collectionId = collectionIdSchema.parse(req.params.collectionId);
+    const collection = await loadCollectionDetail({ collectionId, viewerId: req.user.sub, ownerOnly: true });
+
+    if (!collection) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+
+    return res.json({ collection });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/:collectionId/export', requireAuth, async (req, res, next) => {
+  try {
+    const collectionId = collectionIdSchema.parse(req.params.collectionId);
+    const { format } = exportSchema.parse(req.query);
+    const collection = await loadCollectionDetail({ collectionId, viewerId: req.user.sub, ownerOnly: true });
+
+    if (!collection) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+
+    const output = exportCollection(collection, format);
+    res.setHeader('content-type', output.contentType);
+    return res.send(output.body);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch('/:collectionId', requireAuth, async (req, res, next) => {
+  try {
+    const collectionId = collectionIdSchema.parse(req.params.collectionId);
+    const input = collectionUpdateSchema.parse(req.body);
+    const result = await query(
+      `update collections
+       set name = coalesce($3, name),
+           is_public = case when $4::boolean then $5 else is_public end,
+           updated_at = now()
+       where id = $1 and user_id = $2
+       returning id, name, is_public as "isPublic", created_at as "createdAt", updated_at as "updatedAt", 0::int as "verseCount"`,
+      [
+        collectionId,
+        req.user.sub,
+        input.name || null,
+        Object.hasOwn(input, 'isPublic'),
+        input.isPublic ?? false,
+      ],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+
+    return res.json({ collection: collectionFromRow(result.rows[0]) });
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Collection name already exists' });
+    }
+    return next(error);
+  }
+});
+
+router.delete('/:collectionId', requireAuth, async (req, res, next) => {
   try {
     const collectionId = collectionIdSchema.parse(req.params.collectionId);
     const result = await query(
@@ -168,7 +328,7 @@ router.delete('/:collectionId', async (req, res, next) => {
   }
 });
 
-router.post('/:collectionId/verses', async (req, res, next) => {
+router.post('/:collectionId/verses', requireAuth, async (req, res, next) => {
   try {
     const collectionId = collectionIdSchema.parse(req.params.collectionId);
     const input = verseSchema.parse(req.body);
@@ -213,7 +373,7 @@ router.post('/:collectionId/verses', async (req, res, next) => {
   }
 });
 
-router.delete('/:collectionId/verses/:bookId/:chapterNum/:verseNum', async (req, res, next) => {
+router.delete('/:collectionId/verses/:bookId/:chapterNum/:verseNum', requireAuth, async (req, res, next) => {
   try {
     const collectionId = collectionIdSchema.parse(req.params.collectionId);
     const input = {

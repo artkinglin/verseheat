@@ -52,6 +52,7 @@ router.get('/following', requireAuth, async (req, res, next) => {
                   c.id as "collectionId"
            from collections c
            join followed_users fu on fu.following_id = c.user_id
+           where c.is_public = true
          )
          select e.*,
                 e.user_id as "userId",
@@ -72,7 +73,7 @@ router.get('/following', requireAuth, async (req, res, next) => {
          )
          select (
            (select count(*) from verse_ratings vr join followed_users fu on fu.following_id = vr.user_id) +
-           (select count(*) from collections c join followed_users fu on fu.following_id = c.user_id)
+           (select count(*) from collections c join followed_users fu on fu.following_id = c.user_id where c.is_public = true)
          )::int as total`,
         [req.user.sub],
       ),
