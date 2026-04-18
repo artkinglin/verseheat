@@ -12,7 +12,7 @@ function anchorRange(bookId, chapter, startVerse, endVerse, score) {
 }
 
 function bufferBaselineScore(score) {
-  return Math.max(6, Math.min(10, Math.round(6 + ((score - 1) * 4) / 9)));
+  return Math.max(4, Math.min(10, Math.round(4 + ((score - 1) * 6) / 9)));
 }
 
 const anchorEntries = [
