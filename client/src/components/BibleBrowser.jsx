@@ -1,4 +1,4 @@
-import { ArrowLeft, Search, X } from 'lucide-react';
+import { ArrowLeft, Search } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { aggregateKey, toAggregateMap } from '../lib/ratings.js';
@@ -310,6 +310,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
                     <div className="mb-2 text-xs text-slate-500 dark:text-slate-400">{item.averageRating ? `${item.averageRating} avg, ${item.ratingCount} ratings` : 'Unrated'}</div>
                     <RatingControl
                       disabled={!user}
+                      onClear={item.myRating ? () => cancelRating(item) : undefined}
                       selectedScore={item.myRating?.score}
                       onRate={(score) => rate({
                         scope: 'verse',
@@ -320,16 +321,6 @@ export function BibleBrowser({ user, onAuthRequired }) {
                         favorite: Boolean(favoriteDrafts[favoriteKey('verse', selectedChapter.chapter, item.verse)]),
                       })}
                     />
-                    {item.myRating && (
-                      <button
-                        type="button"
-                        className="mt-2 inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                        onClick={() => cancelRating(item)}
-                      >
-                        <X size={13} aria-hidden="true" />
-                        Clear my rating
-                      </button>
-                    )}
                     <label className="mt-2 inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                       <input
                         type="checkbox"

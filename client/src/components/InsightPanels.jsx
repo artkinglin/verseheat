@@ -1,5 +1,5 @@
 import React from 'react';
-import { Share2 } from 'lucide-react';
+import { Share2, X } from 'lucide-react';
 import { referenceLabel } from '../lib/heat.js';
 
 function RankingList({ title, items, emptyLabel }) {
@@ -24,7 +24,7 @@ function RankingList({ title, items, emptyLabel }) {
   );
 }
 
-export function InsightPanels({ leaderboard, trending, myRatings }) {
+export function InsightPanels({ leaderboard, trending, myRatings, onClearRating }) {
   const safeRatings = Array.isArray(myRatings) ? myRatings : [];
   const favorites = safeRatings.filter((rating) => rating.favorite);
 
@@ -51,11 +51,23 @@ export function InsightPanels({ leaderboard, trending, myRatings }) {
                 <div className="font-medium">{referenceLabel(rating)}</div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">{rating.score}/10</div>
               </div>
-              {favorites.some((favorite) => favorite.id === rating.id) && (
-                <button type="button" onClick={() => share(rating)} className="rounded p-2 hover:bg-slate-200 dark:hover:bg-slate-800" aria-label="Share favorite">
-                  <Share2 size={16} />
+              <div className="flex items-center gap-1">
+                {favorites.some((favorite) => favorite.id === rating.id) && (
+                  <button type="button" onClick={() => share(rating)} className="rounded p-2 hover:bg-slate-200 dark:hover:bg-slate-800" aria-label="Share favorite" title="Share favorite">
+                    <Share2 size={16} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onClearRating?.(rating)}
+                  className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  aria-label={`Clear rating for ${referenceLabel(rating)}`}
+                  title="Clear rating"
+                >
+                  <X size={13} aria-hidden="true" />
+                  Clear
                 </button>
-              )}
+              </div>
             </div>
           ))}
         </div>

@@ -1,6 +1,7 @@
 import React from 'react';
+import { X } from 'lucide-react';
 
-export function RatingControl({ disabled, onRate, selectedScore }) {
+export function RatingControl({ disabled, onClear, onRate, selectedScore }) {
   return (
     <div className="flex flex-wrap items-center gap-1">
       {Array.from({ length: 10 }, (_, index) => index + 1).map((score) => (
@@ -20,6 +21,19 @@ export function RatingControl({ disabled, onRate, selectedScore }) {
           {score}
         </button>
       ))}
+      {selectedScore && onClear && (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onClear}
+          className="inline-flex h-8 items-center gap-1 rounded border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Clear my rating"
+          title="Clear my rating"
+        >
+          <X size={13} aria-hidden="true" />
+          Clear
+        </button>
+      )}
     </div>
   );
 }
