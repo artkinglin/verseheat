@@ -1,7 +1,7 @@
 import { ArrowLeft, Search } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { aggregateKey, averageBookRating, toAggregateMap } from '../lib/ratings.js';
+import { aggregateKey, toAggregateMap } from '../lib/ratings.js';
 import { HeatGrid } from './HeatGrid.jsx';
 import { RatingControl } from './RatingControl.jsx';
 
@@ -16,13 +16,39 @@ export function BibleBrowser({ user, onAuthRequired }) {
   const [books, setBooks] = useState([]);
   const [selectedBook, setSelectedBook] = useState(null);
   const [selectedChapter, setSelectedChapter] = useState(null);
-  const [aggregates, setAggregates] = useState([]);
+  const [bookRatings, setBookRatings] = useState([]);
+  const [chapterRatings, setChapterRatings] = useState([]);
+  const [verseRatings, setVerseRatings] = useState([]);
   const [query, setQuery] = useState('');
   const [passage, setPassage] = useState('');
   const [message, setMessage] = useState('');
   const [loadError, setLoadError] = useState('');
   const [bookLoading, setBookLoading] = useState(false);
   const [favoriteDrafts, setFavoriteDrafts] = useState({});
+
+  const loadBookRatings = useCallback(async (bookList) => {
+    const ratings = await Promise.all(
+      bookList.map((book) => api(`/api/ratings/book/${book.id}`).then((data) => data.rating)),
+    );
+    setBookRatings(requireArray(ratings, 'Book ratings'));
+  }, []);
+
+  const loadChapterRatings = useCallback(async (book) => {
+    const ratings = await Promise.all(
+      book.chapters.map((chapter) => api(`/api/ratings/chapter/${book.id}/${chapter.chapter}`).then((data) => data.rating)),
+    );
+    setChapterRatings(requireArray(ratings, 'Chapter ratings'));
+  }, []);
+
+  const loadVerseRatings = useCallback(async (book, chapter) => {
+    const ratings = await Promise.all(
+      Array.from({ length: chapter.verseCount }, (_, index) => {
+        const verse = index + 1;
+        return api(`/api/ratings/verse/${book.id}/${chapter.chapter}/${verse}`).then((data) => data.rating);
+      }),
+    );
+    setVerseRatings(requireArray(ratings, 'Verse ratings'));
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -31,22 +57,24 @@ export function BibleBrowser({ user, onAuthRequired }) {
       try {
         const bookData = await api('/api/bible/books');
         if (ignore) return;
-        setBooks(requireArray(bookData.books, 'Bible books'));
+        const nextBooks = requireArray(bookData.books, 'Bible books');
+        setBooks(nextBooks);
 
         try {
-          const ratingData = await api('/api/ratings/aggregates');
           if (ignore) return;
-          setAggregates(requireArray(ratingData.aggregates, 'Ratings'));
+          await loadBookRatings(nextBooks);
           setLoadError('');
         } catch (error) {
           if (ignore) return;
-          setAggregates([]);
+          setBookRatings([]);
           setLoadError(`Ratings are unavailable: ${error.message}`);
         }
       } catch (error) {
         if (ignore) return;
         setBooks([]);
-        setAggregates([]);
+        setBookRatings([]);
+        setChapterRatings([]);
+        setVerseRatings([]);
         setLoadError(`Bible data is unavailable: ${error.message}`);
       }
     }
@@ -56,7 +84,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [loadBookRatings]);
 
   useEffect(() => {
     if (!selectedBook || !selectedChapter) {
@@ -68,26 +96,27 @@ export function BibleBrowser({ user, onAuthRequired }) {
       .catch((error) => setPassage(error.message));
   }, [selectedBook, selectedChapter]);
 
-  const aggregateMap = useMemo(() => toAggregateMap(aggregates), [aggregates]);
+  const bookRatingMap = useMemo(() => new Map(bookRatings.map((item) => [item.bookId, item])), [bookRatings]);
+  const chapterRatingMap = useMemo(() => toAggregateMap(chapterRatings), [chapterRatings]);
+  const verseRatingMap = useMemo(() => toAggregateMap(verseRatings), [verseRatings]);
   const filteredBooks = useMemo(
     () => books.filter((book) => book.name.toLowerCase().includes(query.toLowerCase())),
     [books, query],
   );
 
   const bookItems = filteredBooks.map((book) => {
-    const averageRating = averageBookRating(book, aggregates);
-    const chapterRatings = aggregates.filter((item) => item.scope === 'chapter' && item.bookId === book.id);
+    const rating = bookRatingMap.get(book.id);
     return {
       key: book.id,
       title: book.name,
-      averageRating,
-      ratingCount: chapterRatings.reduce((sum, item) => sum + item.ratingCount, 0),
+      averageRating: rating?.averageRating,
+      ratingCount: rating?.ratingCount,
       book,
     };
   });
 
   const chapterItems = Array.isArray(selectedBook?.chapters) ? selectedBook.chapters.map((chapter) => {
-    const aggregate = aggregateMap.get(aggregateKey({
+    const aggregate = chapterRatingMap.get(aggregateKey({
       scope: 'chapter',
       bookId: selectedBook.id,
       chapter: chapter.chapter,
@@ -103,7 +132,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
 
   const verseItems = selectedChapter ? Array.from({ length: selectedChapter.verseCount }, (_, index) => {
     const verse = index + 1;
-    const aggregate = aggregateMap.get(aggregateKey({
+    const aggregate = verseRatingMap.get(aggregateKey({
       scope: 'verse',
       bookId: selectedBook.id,
       chapter: selectedChapter.chapter,
@@ -126,15 +155,18 @@ export function BibleBrowser({ user, onAuthRequired }) {
     setMessage('');
     await api('/api/ratings', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, scope: 'verse' }),
     });
-    const { aggregates: fresh } = await api('/api/ratings/aggregates');
-    setAggregates(requireArray(fresh, 'Ratings'));
+    await Promise.all([
+      selectedBook ? loadBookRatings(books) : Promise.resolve(),
+      selectedBook ? loadChapterRatings(selectedBook) : Promise.resolve(),
+      selectedBook && selectedChapter ? loadVerseRatings(selectedBook, selectedChapter) : Promise.resolve(),
+    ]);
     setMessage('Rating saved');
   }
 
   function favoriteKey(scope, chapter, verse) {
-    return `${scope}:${selectedBook?.id}:${chapter}:${verse || 'chapter'}`;
+    return `${scope}:${selectedBook?.id}:${chapter}:${verse}`;
   }
 
   async function selectBook(book) {
@@ -142,16 +174,31 @@ export function BibleBrowser({ user, onAuthRequired }) {
     setMessage('');
     setLoadError('');
     setSelectedBook({ ...book, chapters: [] });
+    setChapterRatings([]);
+    setVerseRatings([]);
     setBookLoading(true);
 
     try {
       const data = await api(`/api/bible/books/${book.id}`);
       setSelectedBook(data.book);
+      await loadChapterRatings(data.book);
     } catch (error) {
       setSelectedBook(null);
+      setChapterRatings([]);
       setLoadError(`Book details are unavailable: ${error.message}`);
     } finally {
       setBookLoading(false);
+    }
+  }
+
+  async function selectChapter(chapter) {
+    setSelectedChapter(chapter);
+    setVerseRatings([]);
+    try {
+      await loadVerseRatings(selectedBook, chapter);
+    } catch (error) {
+      setVerseRatings([]);
+      setLoadError(`Verse ratings are unavailable: ${error.message}`);
     }
   }
 
@@ -160,7 +207,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-semibold">Bible heat map</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Rate chapters and verses from 1 to 10.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Rate verses from 1 to 10. Chapter and book heat update automatically.</p>
         </div>
         <label className="relative block w-full md:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
@@ -195,7 +242,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
           <div className="rounded border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
             <div>
               <h3 className="text-xl font-semibold">{selectedBook.name}</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Choose a chapter to rate it or drill down to individual verses.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Choose a chapter to rate individual verses.</p>
             </div>
           </div>
           {bookLoading ? (
@@ -203,7 +250,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
               Loading chapters...
             </div>
           ) : (
-            <HeatGrid items={chapterItems} onSelect={(item) => setSelectedChapter(item.chapter)} />
+            <HeatGrid items={chapterItems} onSelect={(item) => selectChapter(item.chapter)} />
           )}
         </div>
       )}
@@ -217,29 +264,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
             <div className="rounded border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-xl font-semibold">{selectedBook.name} {selectedChapter.chapter}</h3>
-                <RatingControl
-                  disabled={!user}
-                  onRate={(score) => rate({
-                    scope: 'chapter',
-                    bookId: selectedBook.id,
-                    chapter: selectedChapter.chapter,
-                    score,
-                    favorite: Boolean(favoriteDrafts[favoriteKey('chapter', selectedChapter.chapter)]),
-                  })}
-                />
               </div>
-              <label className="mb-3 inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
-                  checked={Boolean(favoriteDrafts[favoriteKey('chapter', selectedChapter.chapter)])}
-                  onChange={(event) => setFavoriteDrafts({
-                    ...favoriteDrafts,
-                    [favoriteKey('chapter', selectedChapter.chapter)]: event.target.checked,
-                  })}
-                />
-                Mark next chapter rating as favorite
-              </label>
               <pre className="max-h-[34rem] whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-200">{passage || 'Loading passage...'}</pre>
             </div>
             <div className="space-y-3">
