@@ -45,6 +45,13 @@ Client:
 
 ## Deploy
 
-Deploy the client as a static Vite app and the server as a Node service. Provision PostgreSQL, apply `server/db/schema.sql`, and configure the environment variables above.
+Vercel can run the Vite client and Express API together. The catch-all function in `api/[...path].js` passes `/api/*` requests to the Express app, while the SPA rewrite sends non-API routes to `index.html`.
 
-For Vercel client deployments, set `VITE_API_URL` to the deployed API origin, for example `https://your-api.example.com` or `https://your-vercel-domain.vercel.app/api` if the API is hosted under the same Vercel project.
+For same-project Vercel deployments, `VITE_API_URL` can be omitted because the production client uses same-origin `/api/*` requests by default. Configure these Vercel environment variables instead:
+
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `ESV_API_KEY`
+- `CLIENT_ORIGIN=https://your-vercel-domain.vercel.app`
+
+Provision PostgreSQL and apply `server/db/schema.sql` before using ratings or auth. If the API is hosted elsewhere, set `VITE_API_URL` to that API origin, for example `https://your-api.example.com`.

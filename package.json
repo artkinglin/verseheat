@@ -2,6 +2,7 @@
   "name": "verse-heat",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Full-stack Bible verse rating heat map app.",
   "workspaces": [
     "client",
