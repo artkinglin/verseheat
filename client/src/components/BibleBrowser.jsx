@@ -5,6 +5,13 @@ import { aggregateKey, averageBookRating, toAggregateMap } from '../lib/ratings.
 import { HeatGrid } from './HeatGrid.jsx';
 import { RatingControl } from './RatingControl.jsx';
 
+function requireArray(value, label) {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} response was malformed`);
+  }
+  return value;
+}
+
 export function BibleBrowser({ user, onAuthRequired }) {
   const [books, setBooks] = useState([]);
   const [selectedBook, setSelectedBook] = useState(null);
@@ -24,12 +31,12 @@ export function BibleBrowser({ user, onAuthRequired }) {
       try {
         const bookData = await api('/api/bible/books');
         if (ignore) return;
-        setBooks(bookData.books);
+        setBooks(requireArray(bookData.books, 'Bible books'));
 
         try {
           const ratingData = await api('/api/ratings/aggregates');
           if (ignore) return;
-          setAggregates(ratingData.aggregates);
+          setAggregates(requireArray(ratingData.aggregates, 'Ratings'));
           setLoadError('');
         } catch (error) {
           if (ignore) return;
@@ -122,7 +129,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
       body: JSON.stringify(payload),
     });
     const { aggregates: fresh } = await api('/api/ratings/aggregates');
-    setAggregates(fresh);
+    setAggregates(requireArray(fresh, 'Ratings'));
     setMessage('Rating saved');
   }
 

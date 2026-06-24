@@ -28,7 +28,14 @@ export async function api(path, options = {}) {
     },
   });
 
-  const data = await response.json().catch(() => ({}));
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+  const data = isJson ? await response.json().catch(() => ({})) : {};
+
+  if (!isJson) {
+    throw new ApiError('API returned a non-JSON response', response.status);
+  }
+
   if (!response.ok) {
     throw new ApiError(data.error || 'Request failed', response.status);
   }

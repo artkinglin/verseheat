@@ -3,12 +3,14 @@ import { Share2 } from 'lucide-react';
 import { referenceLabel } from '../lib/heat.js';
 
 function RankingList({ title, items, emptyLabel }) {
+  const safeItems = Array.isArray(items) ? items : [];
+
   return (
     <section className="rounded border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
       <h3 className="mb-3 text-lg font-semibold">{title}</h3>
       <div className="space-y-2">
-        {items.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">{emptyLabel}</p>}
-        {items.map((item, index) => (
+        {safeItems.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">{emptyLabel}</p>}
+        {safeItems.map((item, index) => (
           <div key={`${title}-${item.bookId}-${item.chapter}-${item.verse || index}`} className="flex items-center justify-between gap-3 rounded bg-slate-50 px-3 py-2 text-sm dark:bg-slate-950">
             <div>
               <div className="font-medium">{index + 1}. {referenceLabel(item)}</div>
@@ -23,7 +25,8 @@ function RankingList({ title, items, emptyLabel }) {
 }
 
 export function InsightPanels({ leaderboard, trending, myRatings }) {
-  const favorites = myRatings.filter((rating) => rating.favorite);
+  const safeRatings = Array.isArray(myRatings) ? myRatings : [];
+  const favorites = safeRatings.filter((rating) => rating.favorite);
 
   async function share(item) {
     const text = `Verse Heat favorite: ${referenceLabel(item)} rated ${item.score}/10`;
@@ -41,8 +44,8 @@ export function InsightPanels({ leaderboard, trending, myRatings }) {
       <section className="rounded border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <h3 className="mb-3 text-lg font-semibold">Your ratings</h3>
         <div className="space-y-2">
-          {myRatings.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">Sign in and rate passages to build your profile.</p>}
-          {myRatings.slice(0, 8).map((rating) => (
+          {safeRatings.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">Sign in and rate passages to build your profile.</p>}
+          {safeRatings.slice(0, 8).map((rating) => (
             <div key={rating.id} className="flex items-center justify-between gap-3 rounded bg-slate-50 px-3 py-2 text-sm dark:bg-slate-950">
               <div>
                 <div className="font-medium">{referenceLabel(rating)}</div>
