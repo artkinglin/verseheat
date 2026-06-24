@@ -203,6 +203,44 @@ export function BibleBrowser({ user, onAuthRequired }) {
     return `${scope}:${selectedBook?.id}:${chapter}:${verse}`;
   }
 
+  function favoriteValue(item) {
+    const key = favoriteKey('verse', selectedChapter.chapter, item.verse);
+    return favoriteDrafts[key] ?? item.myRating?.favorite ?? false;
+  }
+
+  async function saveFavorite(item, favorite) {
+    if (!user) {
+      onAuthRequired();
+      return;
+    }
+
+    const key = favoriteKey('verse', selectedChapter.chapter, item.verse);
+    setFavoriteDrafts((drafts) => ({
+      ...drafts,
+      [key]: favorite,
+    }));
+
+    if (!item.myRating) {
+      setMessage('Choose a rating to save this favorite');
+      return;
+    }
+
+    setMessage('');
+    await api('/api/ratings', {
+      method: 'POST',
+      body: JSON.stringify({
+        scope: 'verse',
+        bookId: selectedBook.id,
+        chapter: selectedChapter.chapter,
+        verse: item.verse,
+        score: item.myRating.score,
+        favorite,
+      }),
+    });
+    await loadMyRatings();
+    setMessage(favorite ? 'Favorite saved' : 'Favorite removed');
+  }
+
   async function selectBook(book) {
     setSelectedChapter(null);
     setMessage('');
@@ -318,18 +356,15 @@ export function BibleBrowser({ user, onAuthRequired }) {
                         chapter: selectedChapter.chapter,
                         verse: item.verse,
                         score,
-                        favorite: Boolean(favoriteDrafts[favoriteKey('verse', selectedChapter.chapter, item.verse)]),
+                        favorite: Boolean(favoriteValue(item)),
                       })}
                     />
                     <label className="mt-2 inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                       <input
                         type="checkbox"
                         className="h-3 w-3"
-                        checked={Boolean(favoriteDrafts[favoriteKey('verse', selectedChapter.chapter, item.verse)])}
-                        onChange={(event) => setFavoriteDrafts({
-                          ...favoriteDrafts,
-                          [favoriteKey('verse', selectedChapter.chapter, item.verse)]: event.target.checked,
-                        })}
+                        checked={Boolean(favoriteValue(item))}
+                        onChange={(event) => saveFavorite(item, event.target.checked)}
                       />
                       Favorite
                     </label>
