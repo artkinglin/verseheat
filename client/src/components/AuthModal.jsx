@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 
 export function AuthModal({ open, onClose, onLogin, onSignup }) {

@@ -1,3 +1,4 @@
+import React from 'react';
 import { heatColor, scoreLabel } from '../lib/heat.js';
 
 export function HeatGrid({ items, onSelect, emptyLabel = 'No items found' }) {

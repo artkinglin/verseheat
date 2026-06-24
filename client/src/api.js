@@ -36,7 +36,14 @@ export function saveSession({ token, user }) {
 
 export function getSavedUser() {
   const raw = localStorage.getItem('verseHeatUser');
-  return raw ? JSON.parse(raw) : null;
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    clearSession();
+    return null;
+  }
 }
 
 export function clearSession() {
