@@ -26,28 +26,19 @@ export function BibleBrowser({ user, onAuthRequired }) {
   const [bookLoading, setBookLoading] = useState(false);
   const [favoriteDrafts, setFavoriteDrafts] = useState({});
 
-  const loadBookRatings = useCallback(async (bookList) => {
-    const ratings = await Promise.all(
-      bookList.map((book) => api(`/api/ratings/book/${book.id}`).then((data) => data.rating)),
-    );
-    setBookRatings(requireArray(ratings, 'Book ratings'));
+  const loadBookRatings = useCallback(async () => {
+    const data = await api('/api/ratings/aggregates?scope=book');
+    setBookRatings(requireArray(data.aggregates, 'Book ratings'));
   }, []);
 
   const loadChapterRatings = useCallback(async (book) => {
-    const ratings = await Promise.all(
-      book.chapters.map((chapter) => api(`/api/ratings/chapter/${book.id}/${chapter.chapter}`).then((data) => data.rating)),
-    );
-    setChapterRatings(requireArray(ratings, 'Chapter ratings'));
+    const data = await api(`/api/ratings/aggregates?scope=chapter&bookId=${book.id}`);
+    setChapterRatings(requireArray(data.aggregates, 'Chapter ratings'));
   }, []);
 
   const loadVerseRatings = useCallback(async (book, chapter) => {
-    const ratings = await Promise.all(
-      Array.from({ length: chapter.verseCount }, (_, index) => {
-        const verse = index + 1;
-        return api(`/api/ratings/verse/${book.id}/${chapter.chapter}/${verse}`).then((data) => data.rating);
-      }),
-    );
-    setVerseRatings(requireArray(ratings, 'Verse ratings'));
+    const data = await api(`/api/ratings/aggregates?scope=verse&bookId=${book.id}&chapter=${chapter.chapter}`);
+    setVerseRatings(requireArray(data.aggregates, 'Verse ratings'));
   }, []);
 
   useEffect(() => {
@@ -62,7 +53,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
 
         try {
           if (ignore) return;
-          await loadBookRatings(nextBooks);
+          await loadBookRatings();
           setLoadError('');
         } catch (error) {
           if (ignore) return;
@@ -158,7 +149,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
       body: JSON.stringify({ ...payload, scope: 'verse' }),
     });
     await Promise.all([
-      selectedBook ? loadBookRatings(books) : Promise.resolve(),
+      loadBookRatings(),
       selectedBook ? loadChapterRatings(selectedBook) : Promise.resolve(),
       selectedBook && selectedChapter ? loadVerseRatings(selectedBook, selectedChapter) : Promise.resolve(),
     ]);

@@ -9,6 +9,7 @@ const schemaPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 
 export const pool = new Pool({
   connectionString: config.databaseUrl,
+  max: Number(process.env.PGPOOL_MAX || 3),
 });
 
 let schemaReady;
