@@ -11,7 +11,9 @@ export default [
       ecmaVersion: 2020,
       globals: {
         document: 'readonly',
+        fetch: 'readonly',
         localStorage: 'readonly',
+        navigator: 'readonly',
         window: 'readonly',
       },
       parserOptions: {

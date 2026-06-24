@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { BarChart3, Grid3X3, Search } from 'lucide-react';
 import { api } from './api.js';
 import { AuthModal } from './components/AuthModal.jsx';
@@ -28,11 +28,7 @@ export default function App() {
     localStorage.setItem('verseHeatDark', String(darkMode));
   }, [darkMode]);
 
-  useEffect(() => {
-    refreshInsights();
-  }, [user]);
-
-  async function refreshInsights() {
+  const refreshInsights = useCallback(async () => {
     const [leaderboardData, trendingData] = await Promise.all([
       api('/api/ratings/leaderboard'),
       api('/api/ratings/trending'),
@@ -46,7 +42,11 @@ export default function App() {
     } else {
       setMyRatings([]);
     }
-  }
+  }, [user]);
+
+  useEffect(() => {
+    refreshInsights();
+  }, [refreshInsights]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-50">

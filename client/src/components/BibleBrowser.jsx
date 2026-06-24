@@ -14,6 +14,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
   const [passage, setPassage] = useState('');
   const [message, setMessage] = useState('');
   const [favoriteDrafts, setFavoriteDrafts] = useState({});
+  const selectedBookId = selectedBook?.id;
 
   useEffect(() => {
     Promise.all([
@@ -26,9 +27,9 @@ export function BibleBrowser({ user, onAuthRequired }) {
   }, []);
 
   useEffect(() => {
-    if (!selectedBook) return;
-    api(`/api/bible/books/${selectedBook.id}`).then(({ book }) => setSelectedBook(book));
-  }, [selectedBook?.id]);
+    if (!selectedBookId || Array.isArray(selectedBook?.chapters)) return;
+    api(`/api/bible/books/${selectedBookId}`).then(({ book }) => setSelectedBook(book));
+  }, [selectedBookId, selectedBook?.chapters]);
 
   useEffect(() => {
     if (!selectedBook || !selectedChapter) {
