@@ -19,8 +19,7 @@ create table if not exists ratings (
   score integer not null check (score between 1 and 10),
   favorite boolean not null default false,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (user_id, scope, book_id, chapter, verse)
+  updated_at timestamptz not null default now()
 );
 
 create index if not exists ratings_reference_idx
@@ -28,3 +27,11 @@ create index if not exists ratings_reference_idx
 
 create index if not exists ratings_updated_at_idx
   on ratings (updated_at desc);
+
+create unique index if not exists ratings_one_chapter_per_user_idx
+  on ratings (user_id, book_id, chapter)
+  where scope = 'chapter';
+
+create unique index if not exists ratings_one_verse_per_user_idx
+  on ratings (user_id, book_id, chapter, verse)
+  where scope = 'verse';
