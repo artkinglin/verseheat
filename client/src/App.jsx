@@ -58,8 +58,10 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    refreshInsights();
-  }, [refreshInsights]);
+    if (activeTab === 'insights') {
+      refreshInsights();
+    }
+  }, [activeTab, refreshInsights]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-50">
