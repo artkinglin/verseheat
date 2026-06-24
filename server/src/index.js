@@ -1,5 +1,10 @@
 import { createApp } from './server.js';
-import { config } from './config.js';
+import { config, validateConfig } from './config.js';
+
+const missing = validateConfig();
+if (missing.length) {
+  console.warn(`Missing or unsafe config: ${missing.join(', ')}`);
+}
 
 const app = createApp();
 
