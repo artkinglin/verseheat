@@ -1,4 +1,4 @@
-import { ArrowLeft, Search } from 'lucide-react';
+import { ArrowLeft, Search, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { aggregateKey, toAggregateMap } from '../lib/ratings.js';
@@ -19,6 +19,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
   const [bookRatings, setBookRatings] = useState([]);
   const [chapterRatings, setChapterRatings] = useState([]);
   const [verseRatings, setVerseRatings] = useState([]);
+  const [myRatings, setMyRatings] = useState([]);
   const [query, setQuery] = useState('');
   const [passage, setPassage] = useState('');
   const [message, setMessage] = useState('');
@@ -40,6 +41,16 @@ export function BibleBrowser({ user, onAuthRequired }) {
     const data = await api(`/api/ratings/aggregates?scope=verse&bookId=${book.id}&chapter=${chapter.chapter}`);
     setVerseRatings(requireArray(data.aggregates, 'Verse ratings'));
   }, []);
+
+  const loadMyRatings = useCallback(async () => {
+    if (!user) {
+      setMyRatings([]);
+      return;
+    }
+
+    const data = await api('/api/ratings/mine');
+    setMyRatings(requireArray(data.ratings, 'My ratings'));
+  }, [user]);
 
   useEffect(() => {
     let ignore = false;
@@ -87,9 +98,14 @@ export function BibleBrowser({ user, onAuthRequired }) {
       .catch((error) => setPassage(error.message));
   }, [selectedBook, selectedChapter]);
 
+  useEffect(() => {
+    loadMyRatings().catch(() => setMyRatings([]));
+  }, [loadMyRatings]);
+
   const bookRatingMap = useMemo(() => new Map(bookRatings.map((item) => [item.bookId, item])), [bookRatings]);
   const chapterRatingMap = useMemo(() => toAggregateMap(chapterRatings), [chapterRatings]);
   const verseRatingMap = useMemo(() => toAggregateMap(verseRatings), [verseRatings]);
+  const myRatingMap = useMemo(() => toAggregateMap(myRatings), [myRatings]);
   const filteredBooks = useMemo(
     () => books.filter((book) => book.name.toLowerCase().includes(query.toLowerCase())),
     [books, query],
@@ -129,11 +145,18 @@ export function BibleBrowser({ user, onAuthRequired }) {
       chapter: selectedChapter.chapter,
       verse,
     }));
+    const myRating = myRatingMap.get(aggregateKey({
+      scope: 'verse',
+      bookId: selectedBook.id,
+      chapter: selectedChapter.chapter,
+      verse,
+    }));
     return {
       key: verse,
       title: `Verse ${verse}`,
       averageRating: aggregate?.averageRating,
       ratingCount: aggregate?.ratingCount,
+      myRating,
       verse,
     };
   }) : [];
@@ -152,8 +175,28 @@ export function BibleBrowser({ user, onAuthRequired }) {
       loadBookRatings(),
       selectedBook ? loadChapterRatings(selectedBook) : Promise.resolve(),
       selectedBook && selectedChapter ? loadVerseRatings(selectedBook, selectedChapter) : Promise.resolve(),
+      loadMyRatings(),
     ]);
     setMessage('Rating saved');
+  }
+
+  async function cancelRating(item) {
+    if (!user) {
+      onAuthRequired();
+      return;
+    }
+
+    setMessage('');
+    await api(`/api/ratings/verse/${selectedBook.id}/${selectedChapter.chapter}/${item.verse}`, {
+      method: 'DELETE',
+    });
+    await Promise.all([
+      loadBookRatings(),
+      loadChapterRatings(selectedBook),
+      loadVerseRatings(selectedBook, selectedChapter),
+      loadMyRatings(),
+    ]);
+    setMessage('Rating removed');
   }
 
   function favoriteKey(scope, chapter, verse) {
@@ -267,6 +310,7 @@ export function BibleBrowser({ user, onAuthRequired }) {
                     <div className="mb-2 text-xs text-slate-500 dark:text-slate-400">{item.averageRating ? `${item.averageRating} avg, ${item.ratingCount} ratings` : 'Unrated'}</div>
                     <RatingControl
                       disabled={!user}
+                      selectedScore={item.myRating?.score}
                       onRate={(score) => rate({
                         scope: 'verse',
                         bookId: selectedBook.id,
@@ -276,6 +320,16 @@ export function BibleBrowser({ user, onAuthRequired }) {
                         favorite: Boolean(favoriteDrafts[favoriteKey('verse', selectedChapter.chapter, item.verse)]),
                       })}
                     />
+                    {item.myRating && (
+                      <button
+                        type="button"
+                        className="mt-2 inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        onClick={() => cancelRating(item)}
+                      >
+                        <X size={13} aria-hidden="true" />
+                        Clear my rating
+                      </button>
+                    )}
                     <label className="mt-2 inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                       <input
                         type="checkbox"

@@ -339,6 +339,34 @@ router.post('/', requireAuth, async (req, res, next) => {
   }
 });
 
+router.delete('/verse/:bookId/:chapterNum/:verseNum', requireAuth, async (req, res, next) => {
+  try {
+    const input = {
+      bookId: z.coerce.number().int().min(1).max(66).parse(req.params.bookId),
+      chapter: z.coerce.number().int().min(1).parse(req.params.chapterNum),
+      verse: z.coerce.number().int().min(1).parse(req.params.verseNum),
+    };
+    const error = validateReference(input);
+
+    if (error) {
+      return res.status(400).json({ error });
+    }
+
+    const result = await query(
+      `delete from verse_ratings
+       where user_id = $1
+         and book_id = $2
+         and chapter = $3
+         and verse = $4`,
+      [req.user.sub, input.bookId, input.chapter, input.verse],
+    );
+
+    return res.json({ deleted: result.rowCount > 0 });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.get('/leaderboard', async (req, res, next) => {
   try {
     const result = await query(
