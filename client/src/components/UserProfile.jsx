@@ -1,4 +1,4 @@
-import { ArrowLeft, Award, BarChart3, BookOpen, CalendarDays, Flame, Heart, Layers3, Library, PieChart, Star, Target, UserRound } from 'lucide-react';
+import { ArrowLeft, Award, BarChart3, BookOpen, CalendarDays, Edit3, Flame, Heart, Layers3, Library, PieChart, Star, Target, UserCheck, UserPlus, UserRound } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { referenceLabel } from '../lib/heat.js';
@@ -13,7 +13,22 @@ function formatDate(value) {
 }
 
 function displayName(user) {
-  return user?.displayName || user?.email || 'Verse Heat user';
+  return user?.displayName || user?.username || 'Verse Heat user';
+}
+
+function Avatar({ user, size = 'lg' }) {
+  const name = displayName(user);
+  const classes = size === 'sm' ? 'h-9 w-9 text-sm' : 'h-16 w-16 text-2xl';
+
+  if (user?.profilePicture) {
+    return <img src={user.profilePicture} alt="" className={`${classes} rounded-lg object-cover shadow-sm`} />;
+  }
+
+  return (
+    <div className={`${classes} flex shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-emerald-600 font-extrabold text-white shadow-sm`}>
+      {name.slice(0, 1).toUpperCase()}
+    </div>
+  );
 }
 
 function StatCard({ icon, label, value }) {
@@ -277,7 +292,7 @@ function CollectionGrid({ collections, onCollectionSelect }) {
   );
 }
 
-export function UserProfile({ currentUser, onBackHome, onNavigate }) {
+export function UserProfile({ currentUser, onBackHome, onNavigate, onProfileUpdate, onAuthRequired }) {
   const userId = window.location.pathname.split('/').filter(Boolean)[1];
   const [profile, setProfile] = useState(null);
   const [ratings, setRatings] = useState([]);
@@ -285,6 +300,8 @@ export function UserProfile({ currentUser, onBackHome, onNavigate }) {
   const [ratingsTotal, setRatingsTotal] = useState(0);
   const [statistics, setStatistics] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ username: '', displayName: '', bio: '', profilePicture: '' });
   const [selectedCollectionId, setSelectedCollectionId] = useState(() => new window.URLSearchParams(window.location.search).get('collection') || '');
   const [status, setStatus] = useState('');
   const pageSize = 12;
@@ -293,6 +310,12 @@ export function UserProfile({ currentUser, onBackHome, onNavigate }) {
     try {
       const data = await api(`/api/users/${userId}`);
       setProfile(data);
+      setEditForm({
+        username: data.user?.username || '',
+        displayName: data.user?.displayName || '',
+        bio: data.user?.bio || '',
+        profilePicture: data.user?.profilePicture || '',
+      });
       setStatus('');
     } catch (error) {
       setProfile(null);
@@ -337,6 +360,39 @@ export function UserProfile({ currentUser, onBackHome, onNavigate }) {
     onNavigate(`/profile/${userId}?collection=${collectionId}`);
   }
 
+  async function toggleFollow() {
+    if (!currentUser) {
+      onAuthRequired?.();
+      return;
+    }
+
+    const method = profile?.follow?.isFollowing ? 'DELETE' : 'POST';
+    try {
+      const data = await api(`/api/users/${userId}/follow`, { method });
+      setProfile((value) => value ? { ...value, follow: data.follow } : value);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function submitProfile(event) {
+    event.preventDefault();
+
+    try {
+      const user = await onProfileUpdate({
+        username: editForm.username,
+        displayName: editForm.displayName || null,
+        bio: editForm.bio || null,
+        profilePicture: editForm.profilePicture || null,
+      });
+      setProfile((value) => value ? { ...value, user } : value);
+      setEditing(false);
+      setStatus('Profile updated');
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
   if (status && !profile) {
     return (
       <section className="app-card p-6">
@@ -353,6 +409,7 @@ export function UserProfile({ currentUser, onBackHome, onNavigate }) {
   const isCurrentUser = currentUser?.id === profile?.user?.id;
   const ratedSummary = `Rated ${stats.totalVersesRated || 0} verses across ${stats.bookCount || 0} books`;
   const totalPages = Math.max(1, Math.ceil((ratingsTotal || 0) / pageSize));
+  const follow = profile?.follow || {};
 
   return (
     <section className="space-y-4">
@@ -363,26 +420,75 @@ export function UserProfile({ currentUser, onBackHome, onNavigate }) {
 
       <div className="app-card overflow-hidden bg-gradient-to-r from-amber-50 via-white to-emerald-50 p-5 dark:from-indigo-950/80 dark:via-slate-950/80 dark:to-emerald-950/50">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
+          <div className="flex gap-4">
+            <Avatar user={profile?.user} />
+            <div>
             <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-extrabold uppercase text-purple-800 dark:border-purple-300/30 dark:bg-purple-950/40 dark:text-purple-100">
               <UserRound size={14} aria-hidden="true" />
               {isCurrentUser ? 'Your public profile' : 'Public profile'}
             </div>
             <h2 className="section-heading text-3xl font-extrabold tracking-normal">{displayName(profile?.user)}</h2>
+            {profile?.user?.username && <p className="text-sm font-bold text-purple-700 dark:text-purple-200">@{profile.user.username}</p>}
             <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300">{ratedSummary}</p>
+            {profile?.user?.bio && <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">{profile.user.bio}</p>}
+            </div>
           </div>
-          <div className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
-            <CalendarDays size={16} aria-hidden="true" />
-            Joined {formatDate(profile?.user?.createdAt)}
+          <div className="space-y-2 md:text-right">
+            <div className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
+              <CalendarDays size={16} aria-hidden="true" />
+              Joined {formatDate(profile?.user?.createdAt)}
+            </div>
+            <div className="flex flex-wrap gap-2 md:justify-end">
+              <span className="rounded-lg bg-white/80 px-3 py-2 text-sm font-extrabold text-slate-700 dark:bg-slate-950/50 dark:text-amber-50">{follow.followerCount || 0} followers</span>
+              <span className="rounded-lg bg-white/80 px-3 py-2 text-sm font-extrabold text-slate-700 dark:bg-slate-950/50 dark:text-amber-50">{follow.followingCount || 0} following</span>
+            </div>
+            {isCurrentUser ? (
+              <button type="button" className="btn-soft" onClick={() => setEditing((value) => !value)}>
+                <Edit3 size={16} aria-hidden="true" />
+                Edit Profile
+              </button>
+            ) : (
+              <button type="button" className={follow.isFollowing ? 'btn-soft' : 'btn-primary'} onClick={toggleFollow}>
+                {follow.isFollowing ? <UserCheck size={16} aria-hidden="true" /> : <UserPlus size={16} aria-hidden="true" />}
+                {follow.isFollowing ? 'Following' : 'Follow'}
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {status && <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-950/40 dark:text-emerald-100">{status}</p>}
+
+      {isCurrentUser && editing && (
+        <form onSubmit={submitProfile} className="app-card grid gap-3 p-4 md:grid-cols-2">
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+            Username
+            <input className="app-input mt-1 w-full px-3 py-2" pattern="[A-Za-z0-9_-]{3,32}" value={editForm.username} onChange={(event) => setEditForm({ ...editForm, username: event.target.value })} />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+            Display name
+            <input className="app-input mt-1 w-full px-3 py-2" value={editForm.displayName} onChange={(event) => setEditForm({ ...editForm, displayName: event.target.value })} />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 md:col-span-2">
+            Bio
+            <textarea className="app-input mt-1 min-h-24 w-full px-3 py-2" maxLength={180} value={editForm.bio} onChange={(event) => setEditForm({ ...editForm, bio: event.target.value })} />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 md:col-span-2">
+            Profile picture URL
+            <input className="app-input mt-1 w-full px-3 py-2" type="url" value={editForm.profilePicture} onChange={(event) => setEditForm({ ...editForm, profilePicture: event.target.value })} />
+          </label>
+          <div className="flex gap-2 md:col-span-2">
+            <button type="submit" className="btn-primary">Save Profile</button>
+            <button type="button" className="btn-soft" onClick={() => setEditing(false)}>Cancel</button>
+          </div>
+        </form>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={BookOpen} label="Verses rated" value={stats.totalVersesRated || 0} />
         <StatCard icon={Layers3} label="Books covered" value={stats.bookCount || 0} />
         <StatCard icon={Star} label="Avg rating" value={stats.averageRatingGiven ? Number(stats.averageRatingGiven).toFixed(1) : '--'} />
-        <StatCard icon={Heart} label="Favorites" value={stats.favoriteCount || 0} />
+        <StatCard icon={Heart} label="Favorite book" value={stats.favoriteBook?.bookName || '--'} />
       </div>
 
       <StatisticsDashboard isCurrentUser={isCurrentUser} statistics={statistics} />

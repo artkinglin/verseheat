@@ -1,7 +1,7 @@
 import React from 'react';
-import { Flame, LogOut, Moon, Sun, User } from 'lucide-react';
+import { Flame, LogOut, Moon, Newspaper, Sun, User } from 'lucide-react';
 
-export function Header({ user, onAuthOpen, onLogout, darkMode, onDarkModeToggle }) {
+export function Header({ user, onAuthOpen, onLogout, onNavigate, darkMode, onDarkModeToggle }) {
   return (
     <header className="sticky top-0 z-20 border-b border-amber-200/70 bg-white/85 shadow-sm shadow-amber-950/5 backdrop-blur dark:border-indigo-400/20 dark:bg-slate-950/85 dark:shadow-black/20">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -28,10 +28,22 @@ export function Header({ user, onAuthOpen, onLogout, darkMode, onDarkModeToggle 
 
           {user ? (
             <>
-              <div className="hidden items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-sm font-medium text-slate-700 dark:border-emerald-400/20 dark:bg-emerald-950/30 dark:text-emerald-100 sm:flex">
+              <button
+                type="button"
+                onClick={() => onNavigate?.('/following')}
+                className="hidden h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-px hover:bg-amber-100 dark:border-indigo-400/30 dark:bg-indigo-950/40 dark:text-amber-50 dark:hover:bg-indigo-900/60 sm:inline-flex"
+              >
+                <Newspaper size={16} aria-hidden="true" />
+                Following
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate?.(`/profile/${user.id}`)}
+                className="hidden items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-sm font-medium text-slate-700 transition hover:-translate-y-px hover:bg-emerald-100 dark:border-emerald-400/20 dark:bg-emerald-950/30 dark:text-emerald-100 dark:hover:bg-emerald-900/50 sm:flex"
+              >
                 <User size={16} aria-hidden="true" />
-                <span>{user.displayName || user.email}</span>
-              </div>
+                <span>{user.displayName || user.username || user.email}</span>
+              </button>
               <button
                 type="button"
                 onClick={onLogout}

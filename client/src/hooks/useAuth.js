@@ -38,10 +38,20 @@ export function useAuth() {
     setUser(session.user);
   }
 
+  async function updateProfile(payload) {
+    const data = await api('/api/users/me/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    localStorage.setItem('verseHeatUser', JSON.stringify(data.user));
+    setUser(data.user);
+    return data.user;
+  }
+
   function logout() {
     clearSession();
     setUser(null);
   }
 
-  return { user, authLoading, signup, login, logout };
+  return { user, authLoading, signup, login, logout, updateProfile };
 }
