@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import { LogIn, UserPlus, X } from 'lucide-react';
 
 export function AuthModal({ open, onClose, onLogin, onSignup }) {
   const [mode, setMode] = useState('login');
@@ -28,22 +28,25 @@ export function AuthModal({ open, onClose, onLogin, onSignup }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 px-4">
-      <div className="w-full max-w-md rounded border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+      <div className="app-card w-full max-w-md bg-gradient-to-br from-white to-amber-50 p-5 shadow-xl dark:from-slate-950 dark:to-indigo-950/70">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{mode === 'signup' ? 'Create account' : 'Sign in'}</h2>
-          <button type="button" onClick={onClose} className="rounded p-2 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close">
+          <h2 className="inline-flex items-center gap-2 text-lg font-extrabold text-slate-950 dark:text-amber-50">
+            {mode === 'signup' ? <UserPlus size={18} className="text-emerald-700 dark:text-emerald-300" aria-hidden="true" /> : <LogIn size={18} className="text-amber-600 dark:text-amber-300" aria-hidden="true" />}
+            {mode === 'signup' ? 'Create account' : 'Sign in'}
+          </h2>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-600 transition hover:bg-amber-100 dark:text-slate-300 dark:hover:bg-indigo-950" aria-label="Close">
             <X size={18} />
           </button>
         </div>
 
-        <div className="mb-4 grid grid-cols-2 rounded border border-slate-200 p-1 dark:border-slate-700">
+        <div className="mb-4 grid grid-cols-2 rounded-lg border border-amber-200 bg-white/70 p-1 dark:border-indigo-400/30 dark:bg-slate-950/60">
           {['login', 'signup'].map((option) => (
             <button
               key={option}
               type="button"
               onClick={() => setMode(option)}
-              className={`rounded px-3 py-2 text-sm font-medium ${mode === option ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950' : 'text-slate-600 dark:text-slate-300'}`}
+              className={`rounded-lg px-3 py-2 text-sm font-bold transition ${mode === option ? 'bg-gradient-to-r from-purple-700 to-indigo-700 text-white shadow-sm dark:from-amber-400 dark:to-emerald-500 dark:text-slate-950' : 'text-slate-600 hover:bg-amber-50 dark:text-slate-300 dark:hover:bg-indigo-950/60'}`}
             >
               {option === 'login' ? 'Login' : 'Signup'}
             </button>
@@ -52,44 +55,45 @@ export function AuthModal({ open, onClose, onLogin, onSignup }) {
 
         <form className="space-y-3" onSubmit={submit}>
           {mode === 'signup' && (
-            <label className="block text-sm">
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
               Display name
               <input
-                className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950"
+                className="app-input mt-1 w-full px-3 py-2.5"
                 value={form.displayName}
                 onChange={(event) => setForm({ ...form, displayName: event.target.value })}
               />
             </label>
           )}
-          <label className="block text-sm">
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
             Email
             <input
               type="email"
               required
-              className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950"
+              className="app-input mt-1 w-full px-3 py-2.5"
               value={form.email}
               onChange={(event) => setForm({ ...form, email: event.target.value })}
             />
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
             Password
             <input
               type="password"
               required
               minLength={8}
-              className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950"
+              className="app-input mt-1 w-full px-3 py-2.5"
               value={form.password}
               onChange={(event) => setForm({ ...form, password: event.target.value })}
             />
           </label>
 
-          {error && <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-200">{error}</p>}
+          {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-400/30 dark:bg-red-950/50 dark:text-red-200">{error}</p>}
 
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 dark:bg-white dark:text-slate-950"
+            className="btn-primary w-full"
           >
+            {mode === 'signup' ? <UserPlus size={16} aria-hidden="true" /> : <LogIn size={16} aria-hidden="true" />}
             {busy ? 'Working...' : mode === 'signup' ? 'Create account' : 'Sign in'}
           </button>
         </form>

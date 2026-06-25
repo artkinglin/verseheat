@@ -10,6 +10,10 @@ const paginationSchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
+const ratingScores = Array.from({ length: 10 }, (_, index) => index + 1);
+const ratingMilestones = [10, 25, 50, 100, 250, 500, 1000];
+const streakMilestones = [3, 7, 14, 30, 60, 100];
+
 function publicUser(row) {
   return {
     id: row.id,
@@ -123,6 +127,141 @@ async function getCollections(userId) {
   }));
 }
 
+function currentUtcDateKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function previousDateKey(dateKey) {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function currentStreak(activeDays) {
+  const activeSet = new Set(activeDays);
+  let cursor = currentUtcDateKey();
+  let streak = 0;
+
+  while (activeSet.has(cursor)) {
+    streak += 1;
+    cursor = previousDateKey(cursor);
+  }
+
+  return streak;
+}
+
+function nextMilestone(value, milestones) {
+  return milestones.find((milestone) => milestone > value) || null;
+}
+
+function achievementBadges(totalVersesRated, streak) {
+  const badges = [];
+
+  if (totalVersesRated >= 10) badges.push({ id: 'rated-10', label: 'First 10', description: 'Rated 10 verses' });
+  if (totalVersesRated >= 50) badges.push({ id: 'rated-50', label: 'Verse Collector', description: 'Rated 50 verses' });
+  if (totalVersesRated >= 100) badges.push({ id: 'rated-100', label: 'Century Reader', description: 'Rated 100 verses' });
+  if (streak >= 3) badges.push({ id: 'streak-3', label: 'Three Day Flame', description: 'Rated verses 3 days in a row' });
+  if (streak >= 7) badges.push({ id: 'streak-7', label: 'Weeklong Heat', description: 'Rated verses 7 days in a row' });
+
+  return badges;
+}
+
+async function getStatistics(userId) {
+  const [
+    stats,
+    bookBreakdown,
+    distribution,
+    struggleCategory,
+    activeDays,
+  ] = await Promise.all([
+    query(
+      `select count(*)::int as "totalVersesRated",
+              count(distinct book_id)::int as "totalBooksTouched",
+              round(avg(score)::numeric, 2)::float as "averageRatingGiven"
+       from verse_ratings
+       where user_id = $1`,
+      [userId],
+    ),
+    query(
+      `select book_id as "bookId",
+              max(book_name) as "bookName",
+              count(*)::int as "verseCount",
+              round(avg(score)::numeric, 2)::float as "averageRating"
+       from verse_ratings
+       where user_id = $1
+       group by book_id
+       order by count(*) desc, book_id asc`,
+      [userId],
+    ),
+    query(
+      `select score, count(*)::int as count
+       from verse_ratings
+       where user_id = $1
+       group by score
+       order by score asc`,
+      [userId],
+    ),
+    query(
+      `select vs.category,
+              count(*)::int as "ratingCount",
+              round(avg(vr.score)::numeric, 2)::float as "averageScore"
+       from verse_ratings vr
+       join verse_struggles vs
+         on vs.book_id = vr.book_id
+        and vs.chapter = vr.chapter
+        and vs.verse = vr.verse
+       where vr.user_id = $1
+       group by vs.category
+       order by count(*) desc, avg(vr.score) desc, vs.category asc
+       limit 1`,
+      [userId],
+    ),
+    query(
+      `select distinct (updated_at at time zone 'UTC')::date::text as day
+       from verse_ratings
+       where user_id = $1
+       order by day desc
+       limit 60`,
+      [userId],
+    ),
+  ]);
+
+  const summary = {
+    totalVersesRated: stats.rows[0]?.totalVersesRated || 0,
+    totalBooksTouched: stats.rows[0]?.totalBooksTouched || 0,
+    averageRatingGiven: stats.rows[0]?.averageRatingGiven || null,
+  };
+  const distributionMap = new Map(distribution.rows.map((row) => [row.score, row.count]));
+  const days = activeDays.rows.map((row) => row.day);
+  const streak = currentStreak(days);
+  const nextRatingMilestone = nextMilestone(summary.totalVersesRated, ratingMilestones);
+  const nextStreakMilestone = nextMilestone(streak, streakMilestones);
+
+  return {
+    ...summary,
+    versesRatedPerBook: bookBreakdown.rows,
+    favoriteBook: bookBreakdown.rows[0] || null,
+    mostRatedStruggleCategory: struggleCategory.rows[0] || null,
+    ratingDistribution: ratingScores.map((score) => ({
+      score,
+      count: distributionMap.get(score) || 0,
+    })),
+    streak,
+    activeDays: days,
+    achievements: achievementBadges(summary.totalVersesRated, streak),
+    nextMilestone: nextRatingMilestone ? {
+      target: nextRatingMilestone,
+      remaining: nextRatingMilestone - summary.totalVersesRated,
+      progress: Math.min(100, Math.round((summary.totalVersesRated / nextRatingMilestone) * 100)),
+    } : null,
+    nextStreakMilestone: nextStreakMilestone ? {
+      target: nextStreakMilestone,
+      remaining: nextStreakMilestone - streak,
+      progress: Math.min(100, Math.round((streak / nextStreakMilestone) * 100)),
+    } : null,
+  };
+}
+
 router.get('/:userId', async (req, res, next) => {
   try {
     const userId = userIdSchema.parse(req.params.userId);
@@ -208,6 +347,21 @@ router.get('/:userId/collections', async (req, res, next) => {
     }
 
     return res.json({ collections: await getCollections(userId) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/:userId/statistics', async (req, res, next) => {
+  try {
+    const userId = userIdSchema.parse(req.params.userId);
+    const user = await getUser(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ statistics: await getStatistics(userId) });
   } catch (error) {
     return next(error);
   }
