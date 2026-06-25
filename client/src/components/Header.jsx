@@ -1,5 +1,5 @@
 import React from 'react';
-import { Flame, LogOut, Moon, Newspaper, Sun, User } from 'lucide-react';
+import { Flame, LogOut, Moon, Newspaper, Sun, User, UsersRound } from 'lucide-react';
 
 export function Header({ user, onAuthOpen, onLogout, onNavigate, darkMode, onDarkModeToggle }) {
   return (
@@ -16,6 +16,14 @@ export function Header({ user, onAuthOpen, onLogout, onNavigate, darkMode, onDar
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigate?.('/discover')}
+            className="hidden h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-px hover:bg-amber-100 dark:border-indigo-400/30 dark:bg-indigo-950/40 dark:text-amber-50 dark:hover:bg-indigo-900/60 sm:inline-flex"
+          >
+            <UsersRound size={16} aria-hidden="true" />
+            Discover
+          </button>
           <button
             type="button"
             onClick={onDarkModeToggle}

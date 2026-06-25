@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BarChart3, Flame, Grid3X3, Search, UserPlus } from 'lucide-react';
+import { BarChart3, Flame, Grid3X3, Search, UserPlus, UsersRound } from 'lucide-react';
 import { api } from './api.js';
 import { AuthModal } from './components/AuthModal.jsx';
 import { BibleBrowser } from './components/BibleBrowser.jsx';
+import { DiscoverUsers } from './components/DiscoverUsers.jsx';
 import { Header } from './components/Header.jsx';
 import { InsightPanels } from './components/InsightPanels.jsx';
 import { SearchPanel } from './components/SearchPanel.jsx';
@@ -23,6 +24,7 @@ function arrayOrEmpty(value) {
 function currentRoute() {
   const path = window.location.pathname;
   const profileMatch = path.match(/^\/profile\/([^/]+)/);
+  if (path === '/discover' || path === '/users') return { name: 'discover' };
   if (path === '/following') return { name: 'following' };
   return profileMatch ? { name: 'profile', userId: profileMatch[1] } : { name: 'home' };
 }
@@ -302,6 +304,14 @@ export default function App() {
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => navigate('/discover')}
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-amber-50 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-indigo-950/60 dark:hover:text-amber-50"
+          >
+            <UsersRound size={16} aria-hidden="true" />
+            Discover
+          </button>
           {user && (
             <>
               <button
@@ -334,6 +344,10 @@ export default function App() {
 
         {route.name === 'following' && (
           <FollowingFeed user={user} onAuthOpen={() => setAuthOpen(true)} onNavigate={navigate} />
+        )}
+
+        {route.name === 'discover' && (
+          <DiscoverUsers user={user} onAuthRequired={() => setAuthOpen(true)} onNavigate={navigate} />
         )}
 
         {route.name === 'home' && activeTab === 'heat' && (

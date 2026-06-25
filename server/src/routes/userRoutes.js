@@ -10,6 +10,10 @@ const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
+const userListSchema = paginationSchema.extend({
+  sort: z.enum(['verses_rated', 'followers', 'recent']).default('verses_rated'),
+  search: z.string().trim().max(80).optional(),
+});
 const profileUpdateSchema = z.object({
   username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9_-]+$/).optional(),
   displayName: z.string().trim().min(1).max(80).nullable().optional(),
@@ -399,6 +403,75 @@ router.get('/me/following', requireAuth, async (req, res, next) => {
         ...publicUser(row),
         followedAt: row.followedAt,
       })),
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/', optionalAuth, async (req, res, next) => {
+  try {
+    const { page, limit, sort, search } = userListSchema.parse(req.query);
+    const offset = (page - 1) * limit;
+    const orderBy = {
+      verses_rated: 'coalesce(rs.verse_count, 0) desc, u.created_at desc',
+      followers: 'coalesce(fs.follower_count, 0) desc, coalesce(rs.verse_count, 0) desc, u.created_at desc',
+      recent: 'u.created_at desc',
+    }[sort];
+    const searchPattern = search ? `%${search}%` : null;
+
+    const [users, total] = await Promise.all([
+      query(
+        `select u.id,
+                u.display_name,
+                u.username,
+                u.bio,
+                u.profile_picture,
+                u.created_at,
+                coalesce(rs.verse_count, 0)::int as "versesRated",
+                coalesce(fs.follower_count, 0)::int as "followerCount",
+                exists (
+                  select 1 from user_follows uf
+                  where uf.follower_id = $1 and uf.following_id = u.id
+                ) as "isFollowing"
+         from users u
+         left join (
+           select user_id, count(*)::int as verse_count
+           from verse_ratings
+           group by user_id
+         ) rs on rs.user_id = u.id
+         left join (
+           select following_id, count(*)::int as follower_count
+           from user_follows
+           group by following_id
+         ) fs on fs.following_id = u.id
+         where ($1::uuid is null or u.id <> $1)
+           and ($2::text is null or u.username ilike $2)
+         order by ${orderBy}
+         limit $3 offset $4`,
+        [req.user?.sub || null, searchPattern, limit, offset],
+      ),
+      query(
+        `select count(*)::int as total
+         from users u
+         where ($1::uuid is null or u.id <> $1)
+           and ($2::text is null or u.username ilike $2)`,
+        [req.user?.sub || null, searchPattern],
+      ),
+    ]);
+
+    return res.json({
+      users: users.rows.map((row) => ({
+        ...publicUser(row),
+        versesRated: row.versesRated,
+        followerCount: row.followerCount,
+        isFollowing: Boolean(row.isFollowing),
+      })),
+      page,
+      limit,
+      total: total.rows[0]?.total || 0,
+      sort,
+      search: search || '',
     });
   } catch (error) {
     return next(error);
