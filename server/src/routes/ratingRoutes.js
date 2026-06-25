@@ -423,17 +423,42 @@ router.delete('/verse/:bookId/:chapterNum/:verseNum', requireAuth, async (req, r
 router.get('/leaderboard', async (req, res, next) => {
   try {
     const result = await query(
-       `select scope, book_id as "bookId", book_name as "bookName", chapter, verse,
-              count(*)::int as "ratingCount",
-              round(avg(score)::numeric, 2)::float as "averageRating"
-       from (
-         select 'verse' as scope, book_id, book_name, chapter, verse, score
-         from verse_ratings
-       ) rated_verses
-       group by scope, book_id, book_name, chapter, verse
-       having count(*) > 0
-       order by avg(score) desc, count(*) desc
-       limit 50`,
+       `with ranked_verses as (
+          select 'verse' as scope,
+                 book_id,
+                 book_name,
+                 chapter,
+                 verse,
+                 count(*)::int as rating_count,
+                 round(avg(score)::numeric, 2)::float as average_rating
+          from verse_ratings
+          group by book_id, book_name, chapter, verse
+          having count(*) > 0
+          order by avg(score) desc, count(*) desc
+          limit 50
+        )
+        select rv.scope,
+               rv.book_id as "bookId",
+               rv.book_name as "bookName",
+               rv.chapter,
+               rv.verse,
+               rv.rating_count as "ratingCount",
+               rv.average_rating as "averageRating",
+               top_user.id as "topUserId",
+               top_user.email as "topUserEmail",
+               top_user.display_name as "topUserDisplayName"
+        from ranked_verses rv
+        left join lateral (
+          select u.id, u.email, u.display_name
+          from verse_ratings vr
+          join users u on u.id = vr.user_id
+          where vr.book_id = rv.book_id
+            and vr.chapter = rv.chapter
+            and vr.verse = rv.verse
+          order by vr.score desc, vr.updated_at desc
+          limit 1
+        ) top_user on true
+        order by rv.average_rating desc, rv.rating_count desc`,
     );
     res.json({ leaderboard: result.rows });
   } catch (error) {
