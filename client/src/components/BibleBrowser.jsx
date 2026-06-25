@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Heart, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, FolderPlus, Heart, Search, SlidersHorizontal, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { aggregateKey, toAggregateMap } from '../lib/ratings.js';
@@ -12,7 +12,100 @@ function requireArray(value, label) {
   return value;
 }
 
-export function BibleBrowser({ user, onAuthRequired }) {
+function verseReferenceKey(verse) {
+  return `${verse.bookId}:${verse.chapter}:${verse.verse}`;
+}
+
+function collectionIncludesVerse(collection, verse) {
+  return Array.isArray(collection.verses)
+    && collection.verses.some((item) => verseReferenceKey(item) === verseReferenceKey(verse));
+}
+
+function VerseCollectionControls({
+  collections,
+  disabled,
+  onAdd,
+  onRemove,
+  reference,
+}) {
+  const [selectedCollectionId, setSelectedCollectionId] = useState('');
+  const safeCollections = Array.isArray(collections) ? collections : [];
+  const memberCollections = safeCollections.filter((collection) => collectionIncludesVerse(collection, reference));
+  const availableCollections = safeCollections.filter((collection) => !collectionIncludesVerse(collection, reference));
+
+  useEffect(() => {
+    if (!selectedCollectionId || availableCollections.some((collection) => collection.id === selectedCollectionId)) {
+      return;
+    }
+    setSelectedCollectionId('');
+  }, [availableCollections, selectedCollectionId]);
+
+  const targetCollectionId = selectedCollectionId || availableCollections[0]?.id || '';
+
+  if (safeCollections.length === 0) {
+    return (
+      <div className="mt-2 rounded-lg border border-dashed border-amber-200 px-2 py-2 text-xs font-semibold text-slate-500 dark:border-indigo-400/30 dark:text-slate-400">
+        Create a collection from your profile to save this verse.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      {memberCollections.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {memberCollections.map((collection) => (
+            <button
+              key={collection.id}
+              type="button"
+              disabled={disabled}
+              onClick={() => onRemove(collection.id, reference)}
+              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-800 transition hover:-translate-y-px hover:bg-emerald-100 dark:border-emerald-400/30 dark:bg-emerald-950/40 dark:text-emerald-100"
+              title={`Remove from ${collection.name}`}
+            >
+              {collection.name}
+              <X size={12} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      )}
+      {availableCollections.length > 0 && (
+        <div className="flex gap-1.5">
+          <select
+            className="app-input min-w-0 flex-1 px-2 py-1.5 text-xs font-semibold"
+            disabled={disabled}
+            value={selectedCollectionId}
+            onChange={(event) => setSelectedCollectionId(event.target.value)}
+            aria-label="Choose collection"
+          >
+            {availableCollections.map((collection) => (
+              <option key={collection.id} value={collection.id}>{collection.name}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={disabled || !targetCollectionId}
+            onClick={() => onAdd(targetCollectionId, reference)}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-purple-200 bg-purple-50 text-purple-800 transition hover:-translate-y-px hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-purple-300/30 dark:bg-purple-950/40 dark:text-purple-100 dark:hover:bg-purple-900/60"
+            aria-label="Add verse to collection"
+            title="Add verse to collection"
+          >
+            <FolderPlus size={15} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function BibleBrowser({
+  user,
+  collections = [],
+  onAddToCollection,
+  onAuthRequired,
+  onCreateCollection,
+  onRemoveFromCollection,
+}) {
   const [books, setBooks] = useState([]);
   const [selectedBook, setSelectedBook] = useState(null);
   const [selectedChapter, setSelectedChapter] = useState(null);
@@ -314,6 +407,54 @@ export function BibleBrowser({ user, onAuthRequired }) {
     setMessage(favorite ? 'Favorite saved' : 'Favorite removed');
   }
 
+  async function createQuickCollection() {
+    if (!user) {
+      onAuthRequired();
+      return;
+    }
+
+    const name = window.prompt('Collection name');
+    if (!name?.trim()) return;
+
+    setMessage('');
+    try {
+      await onCreateCollection(name.trim());
+      setMessage('Collection created');
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function addToCollection(collectionId, reference) {
+    if (!user) {
+      onAuthRequired();
+      return;
+    }
+
+    setMessage('');
+    try {
+      await onAddToCollection(collectionId, reference);
+      setMessage('Verse added to collection');
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function removeFromCollection(collectionId, reference) {
+    if (!user) {
+      onAuthRequired();
+      return;
+    }
+
+    setMessage('');
+    try {
+      await onRemoveFromCollection(collectionId, reference);
+      setMessage('Verse removed from collection');
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
   async function selectBook(book) {
     setSelectedChapter(null);
     setMessage('');
@@ -504,6 +645,10 @@ export function BibleBrowser({ user, onAuthRequired }) {
             <div className="app-card p-4">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="section-heading text-xl font-extrabold">{selectedBook.name} {selectedChapter.chapter}</h3>
+                <button type="button" className="btn-soft" onClick={createQuickCollection}>
+                  <FolderPlus size={16} aria-hidden="true" />
+                  Create Collection
+                </button>
               </div>
               <pre className="max-h-[34rem] whitespace-pre-wrap rounded-lg bg-amber-50/50 p-3 text-sm leading-6 text-slate-700 dark:bg-indigo-950/30 dark:text-slate-200">{passage || 'Loading passage...'}</pre>
             </div>
@@ -517,6 +662,12 @@ export function BibleBrowser({ user, onAuthRequired }) {
                   (() => {
                     const key = favoriteKey('verse', selectedChapter.chapter, item.verse);
                     const isFavorite = favoriteDrafts[key] ?? item.myRating?.favorite ?? false;
+                    const reference = {
+                      bookId: selectedBook.id,
+                      bookName: selectedBook.name,
+                      chapter: selectedChapter.chapter,
+                      verse: item.verse,
+                    };
 
                     return (
                       <div key={item.key} className="app-card p-3 transition hover:-translate-y-px hover:shadow-md hover:shadow-amber-950/10">
@@ -545,6 +696,13 @@ export function BibleBrowser({ user, onAuthRequired }) {
                           <Heart size={13} aria-hidden="true" />
                           Favorite
                         </label>
+                        <VerseCollectionControls
+                          collections={collections}
+                          disabled={!user}
+                          onAdd={addToCollection}
+                          onRemove={removeFromCollection}
+                          reference={reference}
+                        />
                       </div>
                     );
                   })()
