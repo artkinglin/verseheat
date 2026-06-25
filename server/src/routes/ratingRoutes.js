@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '../auth.js';
 import { query } from '../db.js';
 import { getBook, getChapterVerseCount } from '../data/bible.js';
+import { normalizeStruggleList, struggleGroups, struggleNames } from '../data/struggles.js';
 
 const router = Router();
 
@@ -19,6 +20,11 @@ const aggregateSchema = z.object({
   scope: z.enum(['verse', 'chapter', 'book']).optional(),
   bookId: z.coerce.number().int().min(1).max(66).optional(),
   chapter: z.coerce.number().int().min(1).optional(),
+});
+
+const strugglesSchema = z.object({
+  struggle: z.union([z.string(), z.array(z.string())]).optional(),
+  struggles: z.string().optional(),
 });
 
 function validateReference(input) {
@@ -253,6 +259,53 @@ router.get('/aggregates', async (req, res, next) => {
     }
 
     return res.json({ aggregates });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/struggles', async (req, res, next) => {
+  try {
+    const filters = strugglesSchema.parse(req.query);
+    const selected = normalizeStruggleList(filters.struggle ?? filters.struggles);
+    const invalid = selected.filter((struggle) => !struggleNames.includes(struggle));
+
+    if (invalid.length > 0) {
+      return res.status(400).json({ error: `Unknown struggle: ${invalid.join(', ')}` });
+    }
+
+    if (selected.length === 0) {
+      return res.json({ struggles: struggleGroups, selected: [], verses: [] });
+    }
+
+    const result = await query(
+      `select 'verse' as scope,
+              vs.book_id as "bookId",
+              max(vs.book_name) as "bookName",
+              vs.chapter,
+              vs.verse,
+              array_agg(distinct vs.struggle order by vs.struggle) as struggles,
+              array_agg(distinct vs.category order by vs.category) as categories,
+              count(vr.score)::int as "ratingCount",
+              round(avg(vr.score)::numeric, 2)::float as "averageRating",
+              max(vr.updated_at) as "lastRatedAt"
+       from verse_struggles vs
+       left join verse_ratings vr
+         on vr.book_id = vs.book_id
+        and vr.chapter = vs.chapter
+        and vr.verse = vs.verse
+       where vs.struggle = any($1::text[])
+       group by vs.book_id, vs.chapter, vs.verse
+       order by avg(vr.score) desc nulls last,
+                count(vr.score) desc,
+                vs.book_id asc,
+                vs.chapter asc,
+                vs.verse asc
+       limit 100`,
+      [selected],
+    );
+
+    return res.json({ struggles: struggleGroups, selected, verses: result.rows });
   } catch (error) {
     return next(error);
   }
